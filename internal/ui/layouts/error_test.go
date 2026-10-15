@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/tung-dnt/lean-go/internal/server/paths"
 	"github.com/tung-dnt/lean-go/internal/ui/layouts"
 	"github.com/tung-dnt/lean-go/pkg/config"
 	"github.com/tung-dnt/lean-go/pkg/htmx"
@@ -21,7 +22,6 @@ import (
 	"github.com/tung-dnt/lean-go/pkg/log"
 	"github.com/tung-dnt/lean-go/pkg/middleware"
 	"github.com/tung-dnt/lean-go/pkg/msg"
-	"github.com/tung-dnt/lean-go/pkg/paths"
 	"github.com/tung-dnt/lean-go/pkg/session"
 )
 

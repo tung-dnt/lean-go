@@ -9,11 +9,11 @@ import (
 	g "maragu.dev/gomponents"
 	h "maragu.dev/gomponents/html"
 
+	"github.com/tung-dnt/lean-go/internal/server/paths"
 	"github.com/tung-dnt/lean-go/internal/ui"
 	"github.com/tung-dnt/lean-go/pkg/httperr"
 	"github.com/tung-dnt/lean-go/pkg/log"
 	"github.com/tung-dnt/lean-go/pkg/middleware"
-	"github.com/tung-dnt/lean-go/pkg/paths"
 )
 
 // Error is the one place a failed request is answered: every handler and every middleware that cannot serve a

@@ -7,7 +7,7 @@ import (
 	"io/fs"
 	"strings"
 
-	"github.com/tung-dnt/lean-go/pkg/paths"
+	"github.com/tung-dnt/lean-go/internal/server/paths"
 	files "github.com/tung-dnt/lean-go/public"
 )
 

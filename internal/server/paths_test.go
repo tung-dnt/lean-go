@@ -9,17 +9,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/tung-dnt/lean-go/internal/server/paths"
 	"github.com/tung-dnt/lean-go/pkg/config"
-	"github.com/tung-dnt/lean-go/pkg/paths"
 )
 
-// route is a path of pkg/paths, which has to lead to a route of routes.go, with the method the site asks it with.
+// route is a path of internal/server/paths, which has to lead to a route of routes.go, with the method the site asks it with.
 type route struct {
 	method string
 	path   string
 }
 
-// routes lists every path that pkg/paths has, with a value for each of its parameters. A path that is added
+// routes lists every path that internal/server/paths has, with a value for each of its parameters. A path that is added
 // there is added here, and the test below holds the two to the routes that routes.go registers.
 var routes = []route{
 	{http.MethodGet, paths.Healthz},
@@ -61,7 +61,7 @@ func TestPaths__EveryPathLeadsToARoute(t *testing.T) {
 	}
 }
 
-// The patterns that routes.go registers are the paths of pkg/paths: the router reads a {wildcard} where a
+// The patterns that routes.go registers are the paths of internal/server/paths: the router reads a {wildcard} where a
 // path has a value, and the two must agree on everything else.
 func TestPaths__TheWildcardsAreTheValuesOfTheParameters(t *testing.T) {
 	mux := routesOf(t)

@@ -7,7 +7,7 @@ import (
 	"github.com/tung-dnt/lean-go/pkg/htmx"
 )
 
-// To redirects the request to dest, a path of the site (take it from pkg/paths) or an absolute URL, with
+// To redirects the request to dest, a path of the site (take it from internal/server/paths) or an absolute URL, with
 // the status code, one of the 3xx: http.StatusSeeOther after a POST, so that a form sent without htmx is
 // answered with a GET of the page and not with a second POST, http.StatusFound or http.StatusTemporaryRedirect
 // for a GET.

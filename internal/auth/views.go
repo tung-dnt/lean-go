@@ -7,11 +7,11 @@ import (
 	g "maragu.dev/gomponents"
 	h "maragu.dev/gomponents/html"
 
+	"github.com/tung-dnt/lean-go/internal/server/paths"
 	"github.com/tung-dnt/lean-go/internal/ui"
 	"github.com/tung-dnt/lean-go/internal/ui/components"
 	"github.com/tung-dnt/lean-go/internal/ui/layouts"
 	"github.com/tung-dnt/lean-go/pkg/form"
-	"github.com/tung-dnt/lean-go/pkg/paths"
 )
 
 // loginForm is the form of the login page, which is also what a post of it is read into.

@@ -12,7 +12,7 @@ import (
 	"github.com/tung-dnt/lean-go/pkg/pager"
 )
 
-// MenuLink is an item of a menu that links to href, a path of the site (pkg/paths), and is marked as the
+// MenuLink is an item of a menu that links to href, a path of the site (internal/server/paths), and is marked as the
 // current one when it is the path of the request.
 func MenuLink(r *ui.Request, icon g.Node, title, href string) g.Node {
 

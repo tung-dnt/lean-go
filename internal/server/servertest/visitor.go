@@ -16,7 +16,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/tung-dnt/lean-go/internal/external/db"
-	"github.com/tung-dnt/lean-go/pkg/paths"
+	"github.com/tung-dnt/lean-go/internal/server/paths"
 )
 
 // AccountPassword is the password that NewAccount gives every account it makes.

@@ -23,10 +23,10 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/tung-dnt/lean-go/internal/external/db"
+	"github.com/tung-dnt/lean-go/internal/server/paths"
 	"github.com/tung-dnt/lean-go/internal/ui/layouts"
 	"github.com/tung-dnt/lean-go/pkg/form"
 	"github.com/tung-dnt/lean-go/pkg/msg"
-	"github.com/tung-dnt/lean-go/pkg/paths"
 	"github.com/tung-dnt/lean-go/pkg/redirect"
 	"github.com/tung-dnt/lean-go/pkg/session"
 )

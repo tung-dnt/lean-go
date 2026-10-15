@@ -91,7 +91,7 @@ func NewRequest(r *http.Request) *Request {
 	return p
 }
 
-// URL generates an absolute URL for a path of the site (take it from pkg/paths), which is what the
+// URL generates an absolute URL for a path of the site (take it from internal/server/paths), which is what the
 // configuration says the site's address is.
 func (r *Request) URL(path string) string {
 	return r.Config.App.Host + path

@@ -54,8 +54,10 @@ var sdkPrefixes = []string{"github.com/aws/aws-sdk-go-v2"}
 //
 //   - every internal/<domain> is one flat package: it has no sub-packages (testdata excepted).
 //   - a domain imports no other domain, except along the edges listed in domains.
+//   - internal/server/paths is the one package under internal/server that a domain or internal/ui may import, and it
+//     imports nothing of this module.
 //   - pkg and internal/external import no domain, no internal/server and no internal/ui.
-//   - internal/ui imports no domain and no internal/server.
+//   - internal/ui imports no domain and nothing of internal/server but its paths.
 //   - only internal/server imports the domains, and only cmd/* imports internal/server; cmd/* imports only
 //     internal/server, pkg and internal/external (plus the edges of cmdAllowed).
 //   - no package imports echo, gorilla, go-playground/validator or chi.
@@ -128,14 +130,16 @@ func forbidden(pkg, dep string) string {
 			return "pkg and internal/external import no domain, no internal/server and no internal/ui"
 		}
 	case isUnder(pkg, "internal/ui"):
-		if domainOf(dep) != "" || isUnder(dep, "internal/server") {
-			return "internal/ui imports no domain and no internal/server"
+		if domainOf(dep) != "" || isServer(dep) {
+			return "internal/ui imports no domain and nothing of internal/server but its paths"
 		}
+	case pkg == pathsPkg:
+		return "internal/server/paths is a leaf: it imports nothing of this module, so that everything may import it"
 	case isUnder(pkg, "internal/server"):
 		return ""
 	case domainOf(pkg) != "":
-		if isUnder(dep, "internal/server") {
-			return "a domain does not import internal/server"
+		if isServer(dep) {
+			return "a domain imports nothing of internal/server but its paths"
 		}
 		if other := domainOf(dep); other != "" && other != domainOf(pkg) && !slices.Contains(domains[domainOf(pkg)], other) {
 			return "a domain imports no other domain, except along the edges listed in domains (architecture_test.go)"
@@ -161,6 +165,15 @@ func cmdForbidden(pkg, dep string) string {
 	}
 
 	return "cmd/* imports only internal/server, pkg and internal/external"
+}
+
+// pathsPkg is the one package under internal/server that the domains and internal/ui may import: the typed paths of
+// the routes, kept beside routes.go. It imports nothing of this module, so importing it makes no cycle.
+const pathsPkg = "internal/server/paths"
+
+// isServer reports whether pkg is internal/server or below it, its paths excepted.
+func isServer(pkg string) bool {
+	return isUnder(pkg, "internal/server") && pkg != pathsPkg
 }
 
 // isUnder reports whether pkg is root or inside it.

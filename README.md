@@ -38,13 +38,14 @@ cmd/admin                 # makes the admin account and prints its password once
 internal/
 ├── server/               # Run (config, database, sessions, http.Server, shutdown), NewServer (the middleware
 │   │                     #   every page goes through), routes.go (EVERY route), the file, probe and 404 handlers
+│   ├── paths/            #   the typed path of every route (paths.Note(id)): what links, forms and redirects say
 │   └── servertest/       #   the real server for tests: visitor, requests, accounts, fault injection
 ├── ui/                   # the page shell: layouts, components, icons, request helpers
 ├── auth/                 # /login, /logout, password hashing
 ├── note/                 # the example domain: list, post, show, admin delete
 └── external/             # adapters over third-party services
     └── db/               #   migrations/, queries/, and the Go that sqlc generates from them
-pkg/                      # domain-agnostic code: config, middleware, session, form, paths, pager, log, ...
+pkg/                      # domain-agnostic code: config, middleware, session, form, pager, log, ...
 web/js/                   # TypeScript bundled into app.js, cut into areas like internal/ is cut into domains
 public/                   # embedded static files (main.css, app.js, images)
 ```
@@ -69,8 +70,10 @@ flowchart TD
 
 **Edges.** A domain imports `pkg`, `internal/ui`, `internal/external`, and no other domain unless the edge is listed
 in `domains` of `internal/architecture_test.go`. Domains link to each other's pages through the typed path functions
-of `pkg/paths` (`paths.Note(id)`), not by importing. `pkg` and `internal/external` import no domain, no
-`internal/server` and no `internal/ui`; `internal/ui` imports no domain and no server; only `internal/server` imports
+of `internal/server/paths` (`paths.Note(id)`), not by importing. `pkg` and `internal/external` import no domain, no
+`internal/server` and no `internal/ui`; `internal/ui` imports no domain and nothing of the server but
+`internal/server/paths`, which is also the one server package a domain may import (it imports nothing of the module,
+so there is no cycle); only `internal/server` imports
 the domains, and `cmd/*` imports only the server, `pkg` and `internal/external` (`cmd/admin` also `auth`). Echo,
 gorilla, go-playground/validator and chi are not imported anywhere, and a third-party SDK only under
 `internal/external`. `internal/architecture_test.go` checks every import against these rules, so a new edge fails the
@@ -94,7 +97,7 @@ flowchart LR
    (`<d>_test`) that starts the server with `servertest.Main`. Copy `internal/note` as the starting point.
 2. Add a migration (`make migrate-new name=...`) and its queries under `internal/external/db/queries/`, then
    `make sqlc`.
-3. Add its routes to `internal/server/routes.go` and its paths to `pkg/paths`, with a row for each in
+3. Add its routes to `internal/server/routes.go` and its paths to `internal/server/paths`, with a row for each in
    `internal/server/paths_test.go`.
 4. List it in `domains` of `internal/architecture_test.go` (and any other domain it may import).
 5. `make check`.

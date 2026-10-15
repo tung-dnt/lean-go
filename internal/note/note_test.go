@@ -15,8 +15,8 @@ import (
 
 	"github.com/tung-dnt/lean-go/internal/external/db"
 	"github.com/tung-dnt/lean-go/internal/note"
+	"github.com/tung-dnt/lean-go/internal/server/paths"
 	"github.com/tung-dnt/lean-go/internal/server/servertest"
-	"github.com/tung-dnt/lean-go/pkg/paths"
 )
 
 // srv is the real server that these tests drive: server.Run, over a real PostgreSQL, started once for all of them.

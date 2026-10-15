@@ -14,9 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tung-dnt/lean-go/internal/external/db"
+	"github.com/tung-dnt/lean-go/internal/server/paths"
 	"github.com/tung-dnt/lean-go/internal/server/servertest"
 	"github.com/tung-dnt/lean-go/internal/ui"
-	"github.com/tung-dnt/lean-go/pkg/paths"
 	files "github.com/tung-dnt/lean-go/public"
 )
 

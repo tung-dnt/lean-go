@@ -14,12 +14,12 @@ import (
 	h "maragu.dev/gomponents/html"
 
 	"github.com/tung-dnt/lean-go/internal/external/db"
+	"github.com/tung-dnt/lean-go/internal/server/paths"
 	"github.com/tung-dnt/lean-go/internal/ui"
 	"github.com/tung-dnt/lean-go/internal/ui/components"
 	"github.com/tung-dnt/lean-go/internal/ui/layouts"
 	"github.com/tung-dnt/lean-go/pkg/form"
 	"github.com/tung-dnt/lean-go/pkg/pager"
-	"github.com/tung-dnt/lean-go/pkg/paths"
 )
 
 // The limits of a note, which the table holds it to as well (migration 000002).

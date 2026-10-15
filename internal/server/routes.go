@@ -8,15 +8,15 @@ import (
 
 	"github.com/tung-dnt/lean-go/internal/auth"
 	"github.com/tung-dnt/lean-go/internal/note"
+	"github.com/tung-dnt/lean-go/internal/server/paths"
 	"github.com/tung-dnt/lean-go/internal/ui/layouts"
 	"github.com/tung-dnt/lean-go/pkg/middleware"
-	"github.com/tung-dnt/lean-go/pkg/paths"
 	files "github.com/tung-dnt/lean-go/public"
 )
 
 // addRoutes is every route of the site, and the only place a route is registered. A pattern is the method and
 // the path, with the parts of the path that change as {wildcards} that the handler reads with r.PathValue, and
-// each path is also written in pkg/paths, which a link says instead of spelling it: paths_test.go holds
+// each path is also written in internal/server/paths, which a link says instead of spelling it: paths_test.go holds
 // the two to each other.
 //
 // Every route goes through the middleware of every page (NewServer). What a route adds to that is applied here,
