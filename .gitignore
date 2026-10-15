@@ -1,0 +1,8 @@
+.idea
+tmp
+tailwindcss
+daisyui*
+node_modules
+public/static/js/
+public/static/main.css
+.env

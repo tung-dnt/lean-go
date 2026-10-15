@@ -1,0 +1,57 @@
+name: Test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: leango
+          POSTGRES_PASSWORD: leango
+          POSTGRES_DB: leango_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U leango -d leango_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: go.mod
+        cache: true
+        cache-dependency-path: go.sum
+
+    - name: Set up Bun
+      uses: oven-sh/setup-bun@v2
+
+    - name: Install Tailwind and the JS packages
+      # main.css and app.js are build output, not committed, and are embedded in the binary:
+      # `make test` builds them. Same pinned versions as the Docker build (versions.env); a failed
+      # download fails the job here.
+      run: make tailwind-install bun-install
+
+    - name: Type-check the TypeScript
+      run: make typecheck
+
+    - name: Test
+      # Point tests at the CI Postgres service. Without this the tests start their own
+      # testcontainers Postgres (pkg/testdb), which this job does not need. $RAND
+      # is a literal here — the app replaces it per test process for schema isolation.
+      env:
+        GO_DATABASE_TESTCONNECTION: "postgres://leango:leango@localhost:5432/leango_test?sslmode=disable&search_path=test_$RAND"
+      run: make test

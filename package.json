@@ -1,0 +1,17 @@
+{
+  "name": "lean-go-ui",
+  "private": true,
+  "description": "UI bundle sources: htmx + Alpine are bundled by `go tool esbuild` into public/static/js/app.js (single source of truth for versions); dynamic import()s are split into public/static/js/chunks/. Bun installs the packages (see `make bun-install`). The bundle is build output (gitignored), produced by `make js` locally and in the Docker build.",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "alpinejs": "^3.16.0",
+    "htmx-ext-preload": "^2.1.2",
+    "htmx.org": "^2.0.10"
+  },
+  "devDependencies": {
+    "@types/alpinejs": "^3.13.0",
+    "typescript": "^5.6.0"
+  }
+}

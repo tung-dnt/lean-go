@@ -1,0 +1,28 @@
+# The build context is 227 MB without this, most of it host-only tooling.
+.git
+.github
+.claude
+.idea
+
+tmp/
+# Local secrets; production gets them from the deploy platform's environment.
+.env
+
+tailwindcss
+daisyui.js
+daisyui-theme.js
+
+node_modules
+public/static/js/
+public/static/main.css
+
+docs/
+scripts/
+README.md
+PAGODA.md
+LICENSE
+.air.toml
+sqlc.yaml
+docker-compose.yml
+Dockerfile
+.dockerignore

@@ -1,0 +1,50 @@
+http:
+  hostname: ""
+  port: 8000
+  readTimeout: "5s"
+  writeTimeout: "10s"
+  idleTimeout: "2m"
+  shutdownTimeout: "10s"
+  tls:
+    enabled: false
+    certificate: ""
+    key: ""
+
+app:
+  name: "leango"
+  # We manually set this rather than using the HTTP settings in order to build absolute URLs for users
+  # since it's likely your app's HTTP settings are not identical to what is exposed by your server.
+  host: "http://localhost:8000"
+  environment: "local"
+  # Seals the session cookie (AES-256-GCM). Exactly 32 bytes are used as they are; any other length is
+  # stretched to 32 bytes with SHA-256. Change this on any live environments: the value here is public.
+  encryptionKey: "?E(G+KbPeShVmYq3t6w9z$C&F)J@McQf"
+  # The key that encryptionKey replaced, while it is being rotated: a cookie sealed with it is still accepted
+  # and is sealed again with the new key the next time the session is saved. Empty when there is none. The
+  # key has to exist here for GO_APP_PREVIOUSENCRYPTIONKEY to be read.
+  previousEncryptionKey: ""
+  # How long a session cookie lasts, counted from the response that last set it (the login, or the flash
+  # message that came after it). 720h is 30 days.
+  sessionMaxAge: "720h"
+  timeout: "20s"
+
+cache:
+  expiration:
+    publicFile: "4380h"
+    # How long a boosted/preloaded page may live in the user's browser cache so a
+    # hovered (preloaded) nav can be reused on click. Keep short — it is the
+    # staleness window for navigations. 0 disables preload-page caching.
+    page: "30s"
+
+database:
+  # Application data lives in PostgreSQL. Migrations are embedded in the binary and applied by the migrate-*
+  # make targets (and, in the test environment, by the server itself on a throwaway schema).
+  connection: "postgres://leango:leango@localhost:5432/leango?sslmode=disable"
+  # Used when the environment is "test". Empty by default: the tests start a throwaway postgres container
+  # (pkg/testdb), so no local database is needed. CI points them at its postgres service with
+  # GO_DATABASE_TESTCONNECTION instead.
+  # $RAND will be automatically replaced with a random value, giving each test process its own
+  # throwaway schema so that packages tested in parallel cannot clobber each other. The schema is
+  # created on startup and dropped on shutdown. Example:
+  #   postgres://leango:leango@localhost:5432/leango_test?sslmode=disable&search_path=test_$RAND
+  testConnection: ""

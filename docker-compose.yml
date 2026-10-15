@@ -1,0 +1,24 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: leango-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: leango
+      POSTGRES_PASSWORD: leango
+      POSTGRES_DB: leango
+    ports:
+      - "5432:5432"
+    volumes:
+      - leango-postgres:/var/lib/postgresql/data
+      # Creates a spare leango_test database for pointing tests at this server by hand
+      # (GO_DATABASE_TESTCONNECTION). `make test` does not need it: it starts its own container.
+      - ./scripts/postgres-init.sh:/docker-entrypoint-initdb.d/10-test-db.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U leango -d leango"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  leango-postgres:
