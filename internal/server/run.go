@@ -33,7 +33,7 @@ import (
 // server listens, stderr is the log). The only flag is -config, the directory that holds config.yaml.
 //
 // What it builds: the configuration, the logger, the database (in the test environment a schema of its own,
-// created, migrated, and dropped at the end; anywhere else the schema is the migrate-* make targets' business,
+// created, migrated, and dropped at the end; anywhere else the schema is the migrate-* just recipes' business,
 // and is not touched), the session store, and the handler (NewServer).
 func Run(ctx context.Context, args []string, getenv func(string) string, stdout, stderr io.Writer) error {
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
@@ -151,7 +151,7 @@ func serve(ctx context.Context, cfg *config.Config, logger *slog.Logger, handler
 // openDatabase opens the PostgreSQL database of the application data, and returns the function that closes it.
 //
 // Migrations are deliberately NOT applied here for real environments: schema changes are rolled out separately
-// via the migrate-* make targets. The test environment is the exception: its schema is disposable and created
+// via the migrate-* just recipes. The test environment is the exception: its schema is disposable and created
 // from scratch on each run, so it has to be migrated before any queries can run against it. Each run isolates
 // itself within a schema of its own (the $RAND of the test connection becomes a random number) rather than
 // sharing one and clobbering the others, and drops it when it ends.
@@ -170,7 +170,7 @@ func openDatabase(ctx context.Context, cfg *config.Config) (*pgxpool.Pool, func(
 		}
 
 		// The schema was just created and is therefore empty. Build it out with the same embedded migrations the
-		// migrate-* make targets apply, so tests run against the real schema.
+		// migrate-* just recipes apply, so tests run against the real schema.
 		if err := postgres.Migrate(connection); err != nil {
 			return nil, nil, fmt.Errorf("failed to migrate test schema: %w", err)
 		}
@@ -192,8 +192,8 @@ func openDatabase(ctx context.Context, cfg *config.Config) (*pgxpool.Pool, func(
 	return pool, func(logger *slog.Logger) {
 		pool.Close()
 
-		// Discard the disposable schema this test run created.
-		if testing {
+		// Discard the disposable schema this test run created, unless a test is going to start another server on it.
+		if testing && !cfg.Database.KeepTestSchema {
 			if err := postgres.DropSchema(connection); err != nil {
 				logger.Error("failed to drop the test schema", "error", err)
 			}

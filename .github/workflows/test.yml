@@ -2,13 +2,13 @@ name: Test
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, dev ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, dev ]
 
 jobs:
 
-  test:
+  static:
     runs-on: ubuntu-latest
 
     services:
@@ -26,8 +26,17 @@ jobs:
           --health-timeout 5s
           --health-retries 10
 
+    env:
+      # Point tests at the CI Postgres service. Without this the tests start their own testcontainers
+      # Postgres (pkg/testdb), which this job does not need. $RAND is a literal here: the app replaces it per
+      # test process for schema isolation.
+      GO_DATABASE_TESTCONNECTION: "postgres://leango:leango@localhost:5432/leango_test?sslmode=disable&search_path=test_$RAND"
+
     steps:
     - uses: actions/checkout@v4
+      with:
+        # The secrets scan reads the whole history.
+        fetch-depth: 0
 
     - name: Set up Go
       uses: actions/setup-go@v5
@@ -38,20 +47,60 @@ jobs:
 
     - name: Set up Bun
       uses: oven-sh/setup-bun@v2
+      with:
+        # Same as the oven/bun image of the Dockerfile.
+        bun-version: 1.4.2
 
-    - name: Install Tailwind and the JS packages
-      # main.css and app.js are build output, not committed, and are embedded in the binary:
-      # `make test` builds them. Same pinned versions as the Docker build (versions.env); a failed
-      # download fails the job here.
-      run: make tailwind-install bun-install
+    - name: Set up golangci-lint
+      uses: golangci/golangci-lint-action@v8
+      with:
+        version: v2.14.0
+        install-only: true
 
-    - name: Type-check the TypeScript
-      run: make typecheck
+    - name: Set up just
+      uses: extractions/setup-just@v4
 
-    - name: Test
-      # Point tests at the CI Postgres service. Without this the tests start their own
-      # testcontainers Postgres (pkg/testdb), which this job does not need. $RAND
-      # is a literal here — the app replaces it per test process for schema isolation.
-      env:
-        GO_DATABASE_TESTCONNECTION: "postgres://leango:leango@localhost:5432/leango_test?sslmode=disable&search_path=test_$RAND"
-      run: make test
+    - name: Install Tailwind
+      # main.css is build output, not committed, embedded in the binary: `just test` builds it and app.js.
+      # Same pinned version as the Docker build (versions.env).
+      run: just tailwind-install
+
+    - name: Install JS packages
+      run: bun install --frozen-lockfile
+
+    # Every gate runs even when an earlier one failed, so one run shows all that is wrong.
+    - name: SQL
+      if: ${{ !cancelled() }}
+      run: just sqlc-vet sqlc-verify
+
+    - name: Lint
+      if: ${{ !cancelled() }}
+      run: just lint
+
+    - name: Go vulnerabilities
+      if: ${{ !cancelled() }}
+      run: just vuln
+
+    - name: Types
+      if: ${{ !cancelled() }}
+      run: just types
+
+    - name: Secrets
+      if: ${{ !cancelled() }}
+      run: just secrets
+
+    - name: Dependencies
+      if: ${{ !cancelled() }}
+      run: just deps
+
+    - name: Duplicate code
+      if: ${{ !cancelled() }}
+      run: just dupes
+
+    - name: Tests
+      if: ${{ !cancelled() }}
+      run: just test
+
+    - name: Build
+      if: ${{ !cancelled() }}
+      run: just build

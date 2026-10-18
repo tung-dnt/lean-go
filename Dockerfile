@@ -7,7 +7,7 @@ FROM --platform=$BUILDPLATFORM oven/bun:1.4.2-alpine AS jsdeps
 WORKDIR /src
 COPY package.json bun.lock ./
 RUN --mount=type=cache,target=/root/.bun/install/cache \
-  bun install --frozen-lockfile
+  bun install --frozen-lockfile --production
 
 # ---------------------------------------------------------------------------
 # Stage 1: build
@@ -19,18 +19,18 @@ ARG TARGETARCH
 
 WORKDIR /src
 
-# Toolchain for the Makefile's asset targets — same commands as local dev, so
+# Toolchain for the justfile's asset recipes — same commands as local dev, so
 # there is no duplicated download logic here. libstdc++/libgcc: the standalone
 # Tailwind binary is Bun-compiled C++ and links against them even in the -musl
 # build; Alpine omits them by default.
-RUN apk add --no-cache make curl libstdc++ libgcc
+RUN apk add --no-cache just curl libstdc++ libgcc
 
-# Fetch the pinned Tailwind CLI + daisyui plugins via `make tailwind-install`
-# (versions from versions.env; arch/musl auto-detected in the Makefile). Own
+# Fetch the pinned Tailwind CLI + daisyui plugins via `just tailwind-install`
+# (versions from versions.env; arch/musl auto-detected in the justfile). Own
 # early layer so it caches across source changes. .dockerignore keeps the host
 # copies out, so the later `COPY . .` won't clobber what this downloads.
-COPY Makefile versions.env ./
-RUN make tailwind-install
+COPY justfile versions.env ./
+RUN just tailwind-install
 
 # Dependency layer: only invalidated when go.mod/go.sum change.
 COPY go.mod go.sum ./
@@ -43,11 +43,11 @@ COPY . .
 COPY --from=jsdeps /src/node_modules ./node_modules
 
 # Regenerate the embedded assets (public/static/main.css + the js/ bundle) with the
-# same Makefile targets local dev uses, so build output never ships stale. Runs on
+# same justfile recipes local dev uses, so build output never ships stale. Runs on
 # every source change; the tool download above stays cached.
 RUN --mount=type=cache,target=/go/pkg/mod \
   --mount=type=cache,target=/root/.cache/go-build \
-  make css js
+  just css js
 
 # -tags timetzdata embeds the zoneinfo database, which scratch does not carry.
 RUN --mount=type=cache,target=/go/pkg/mod \

@@ -26,7 +26,7 @@ func main() {
 
 // run creates a new admin user with the email passed in via the flag, in the database that the configuration
 // names (config database.connection, which GO_DATABASE_CONNECTION overrides). The schema has to be there already:
-// it is made by the migrate-* make targets.
+// it is made by the migrate-* just recipes.
 func run(ctx context.Context, args []string, getenv func(string) string, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("admin", flag.ContinueOnError)
 	flags.SetOutput(stderr)

@@ -1,5 +1,5 @@
 // Entry point for all UI JavaScript. Bundled by esbuild into
-// public/static/js/app.js (see `make js`) and loaded once in <head>.
+// public/static/js/app.js (see `just js`) and loaded once in <head>.
 //
 // htmx and Alpine are bundled in here from npm (see package.json) rather than
 // loaded from a CDN, so package.json is the single source of truth for their

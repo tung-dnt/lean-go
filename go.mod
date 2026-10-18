@@ -1,6 +1,6 @@
 module github.com/tung-dnt/lean-go
 
-go 1.27.0
+go 1.27.2
 
 require (
 	github.com/PuerkitoBio/goquery v1.12.0

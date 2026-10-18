@@ -21,7 +21,7 @@ outgrew its container/Echo structure; [ADR 0001](docs/adr/0001-lean-stdlib-go.md
 
    (`sed -i ''` is macOS; on Linux drop the `''`.) The second line also renames `module` in
    `internal/architecture_test.go`; set `name` in `package.json` by hand.
-3. `make install && make db-up && make migrate-up && make run`, and open <http://localhost:8000>.
+3. `just install && just db-up && just migrate-up && just run`, and open <http://localhost:8000>.
 4. Build your first domain next to `internal/note` (see "Adding a domain"), then delete `note`: its package, its
    routes, its paths, its migration and queries, its row in the architecture test and `web/js/note`.
 5. Put your name and the date in [CONSTRAINTS.md](CONSTRAINTS.md), and set `GO_APP_ENCRYPTIONKEY` on every live
@@ -95,12 +95,12 @@ flowchart LR
 
 1. Create the flat package `internal/<d>/` with its `HandleX` makers, its `views.go`, and an external test package
    (`<d>_test`) that starts the server with `servertest.Main`. Copy `internal/note` as the starting point.
-2. Add a migration (`make migrate-new name=...`) and its queries under `internal/external/db/queries/`, then
-   `make sqlc`.
+2. Add a migration (`just migrate-new <name>`) and its queries under `internal/external/db/queries/`, then
+   `just sqlc`.
 3. Add its routes to `internal/server/routes.go` and its paths to `internal/server/paths`, with a row for each in
    `internal/server/paths_test.go`.
 4. List it in `domains` of `internal/architecture_test.go` (and any other domain it may import).
-5. `make check`.
+5. `just check`.
 
 The conventions for errors, forms, sessions, guards and tests are the "Server conventions" of
 [CONSTRAINTS.md](CONSTRAINTS.md).
@@ -120,7 +120,7 @@ Tests need Docker and nothing else: the first test of each process starts a thro
 
 ### Frontend
 
-`web/js` is the TypeScript that `make js` bundles with esbuild into `public/static/js/app.js` (htmx and Alpine
+`web/js` is the TypeScript that `just js` bundles with esbuild into `public/static/js/app.js` (htmx and Alpine
 included, so nothing loads from a CDN; a dynamic `import()` becomes a chunk of its own). It is cut into area folders
 the way `internal/` is cut into domains, and `internal/architecture_test.go` holds its imports to a table too:
 
@@ -138,27 +138,27 @@ the test. Styles are Tailwind + daisyUI, built by the standalone Tailwind CLI fr
 ## Getting started
 
 ```bash
-make install     # Go modules + pinned tools (sqlc, air, esbuild, govulncheck) + the Tailwind CLI + bun packages
-make db-up       # start PostgreSQL for `make run` (not needed for `make test`)
-make migrate-up  # apply the schema migrations
-make run         # build the CSS and JS and run the application on :8000
-make admin ADMIN_EMAIL=me@example.com   # create the admin account; the password is printed once
-make watch       # run with air, rebuilding on change
-make help        # every target
+just install     # Go modules + pinned tools (sqlc, air, esbuild, govulncheck) + the Tailwind CLI + bun packages
+just db-up       # start PostgreSQL for `just run` (not needed for `just test`)
+just migrate-up  # apply the schema migrations
+just run         # build the CSS and JS and run the application on :8000
+just admin me@example.com              # create the admin account; the password is printed once
+just watch       # run with air, rebuilding on change
+just             # every recipe
 ```
 
 Configuration is `config/config.yaml`, and every key is overridable as `GO_<SECTION>_<KEY>`
 (`GO_HTTP_PORT`, `GO_DATABASE_CONNECTION`, `GO_APP_ENCRYPTIONKEY`, ...). Secrets go in an untracked `.env`
-(`cp .env.example .env`): `make` exports every variable in it to the commands it runs. In production, set the same
+(`cp .env.example .env`): `just` exports every variable in it to the commands it runs. In production, set the same
 variables in the deploy platform's environment instead; `.env` is excluded from the Docker build context.
 
 ## Changing the schema
 
 ```bash
-make migrate-new name=add_posts   # create the migration files
+just migrate-new add_posts         # create the migration files
 # ...write the up/down SQL, then add queries under internal/external/db/queries/
-make sqlc                         # regenerate the type-safe Go code
-make migrate-up                   # apply it to the local database
+just sqlc                         # regenerate the type-safe Go code
+just migrate-up                   # apply it to the local database
 ```
 
 sqlc reads the migrations directory as its schema source, so the generated code always matches the migrated schema.
@@ -171,14 +171,14 @@ Things an ORM would do for you are explicit: emails are lowercased in SQL (`LOWE
 ## Checks
 
 ```bash
-make test    # go test -race -cover ./... (builds main.css and app.js first)
-make check   # sqlc-verify, lint, vuln, typecheck, test, build: what a finished task must pass
+just test    # go test -race -coverprofile=cover.out ./... (builds main.css and app.js first)
+just check   # sqlc-verify, sqlc-vet, lint, vuln, types, secrets, deps, dupes, test, build: what a finished task must pass
 ```
 
 ## Deploying
 
 `Dockerfile` builds a static binary into a `scratch` image (non-root, CA certificates and zoneinfo included) with the
-same `make css js` targets as local development. Run it with `GO_APP_ENVIRONMENT=prod`, `GO_APP_HOST`,
+same `just css js` recipes as local development. Run it with `GO_APP_ENVIRONMENT=prod`, `GO_APP_HOST`,
 `GO_DATABASE_CONNECTION` and `GO_APP_ENCRYPTIONKEY`; probe readiness at `/healthz`. Behind a reverse proxy, keep the
 app's port reachable from the proxy alone: `X-Forwarded-For` is believed only from loopback and private networks
 (`middleware.RealIP`).

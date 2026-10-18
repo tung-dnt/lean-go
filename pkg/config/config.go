@@ -101,6 +101,10 @@ type (
 		// $RAND will be automatically replaced with a random value, which is used to give each test
 		// process its own throwaway schema via search_path.
 		TestConnection string
+
+		// KeepTestSchema leaves the test schema in place when the server stops, so that a test can start another
+		// server on it, as a restart does. Only read in the test environment.
+		KeepTestSchema bool
 	}
 )
 

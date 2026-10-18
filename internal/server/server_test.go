@@ -83,7 +83,7 @@ func TestStaticFiles(t *testing.T) {
 	t.Run("an image is not compressed, a stylesheet and a script are", func(t *testing.T) {
 		for _, name := range []string{"favicon.png", "main.css", "js/app.js"} {
 			if _, err := fs.Stat(files.Static, "static/"+name); err != nil {
-				continue // main.css and app.js are build output, and CI does not run `make js`
+				continue // main.css and app.js are build output, and CI does not run `just js`
 			}
 
 			req := srv.NewRequest(t, http.MethodGet, "/static/"+name, nil)

@@ -1,0 +1,19 @@
+{
+  "threshold": 0,
+  "minTokens": 70,
+  "format": ["go", "typescript", "javascript", "css"],
+  "ignore": [
+    "**/node_modules/**",
+    "**/tmp/**",
+    "public/static/**",
+    "**/*_test.go",
+    "**/*.test.ts",
+    "internal/external/db/*.sql.go",
+    "internal/external/db/db.go",
+    "internal/external/db/models.go",
+    "internal/external/db/querier.go"
+  ],
+  "reporters": ["console"],
+  "gitignore": true,
+  "absolute": false
+}

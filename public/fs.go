@@ -5,7 +5,7 @@ import (
 	"embed"
 )
 
-// Static is the built site: main.css, the scripts and the images, below static/. It is made by make css and make js.
+// Static is the built site: main.css, the scripts and the images, below static/. It is made by just css and just js.
 //
 //go:embed static
 var Static embed.FS

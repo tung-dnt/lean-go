@@ -12,37 +12,26 @@ import (
 
 // Primary is the shell of the pages of the site: the content beside a sidebar with the menu.
 func Primary(r *ui.Request, content g.Node) g.Node {
-	return h.Doctype(
-		h.HTML(
-			h.Lang("en"),
-			h.Data("theme", "dark"),
-			h.Head(
-				components.Metatags(r),
-				components.CSS(),
-				components.JS(),
+	return document(r,
+		h.Div(
+			h.Class("drawer lg:drawer-open"),
+			h.Input(
+				h.ID("sidebar"),
+				h.Type("checkbox"),
+				h.Class("drawer-toggle"),
 			),
-			h.Body(
-				h.Div(
-					h.Class("drawer lg:drawer-open"),
-					h.Input(
-						h.ID("sidebar"),
-						h.Type("checkbox"),
-						h.Class("drawer-toggle"),
-					),
-					h.Div(
-						h.Class("drawer-content flex flex-col p-7 prose-base [view-transition-name:page-content]"),
-						g.If(len(r.Title) > 0, h.H1(g.Text(r.Title))),
-						components.FlashMessages(r),
-						content,
-						h.Label(
-							h.For("sidebar"),
-							h.Class("btn btn-primary drawer-button lg:hidden"),
-							g.Text("Open drawer"),
-						),
-					),
-					sidebarMenu(r),
+			h.Div(
+				h.Class("drawer-content flex flex-col p-7 prose-base [view-transition-name:page-content]"),
+				g.If(len(r.Title) > 0, h.H1(g.Text(r.Title))),
+				components.FlashMessages(r),
+				content,
+				h.Label(
+					h.For("sidebar"),
+					h.Class("btn btn-primary drawer-button lg:hidden"),
+					g.Text("Open drawer"),
 				),
 			),
+			sidebarMenu(r),
 		),
 	)
 }

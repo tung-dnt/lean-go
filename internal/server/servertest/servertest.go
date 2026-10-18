@@ -70,11 +70,13 @@ type Server struct {
 	DB      *pgxpool.Pool
 	Queries *db.Queries
 
-	cancel  context.CancelFunc
-	done    chan error
-	log     *logBuffer
-	stopped sync.Once
-	stopErr error
+	// connection is the database connection of the server, its own schema included, for a server that shares it.
+	connection string
+	cancel     context.CancelFunc
+	done       chan error
+	log        *logBuffer
+	stopped    sync.Once
+	stopErr    error
 }
 
 // Log is everything that the server has written to its log so far (what server.Run is given as stderr): the line
@@ -120,6 +122,18 @@ type Option func(env map[string]string)
 // tests run from does not reach it.
 func WithEnv(key, value string) Option {
 	return func(env map[string]string) { env[key] = value }
+}
+
+// KeepSchema leaves the schema of the server in place when it stops, for a test that starts another server on it
+// (Sharing), as a restart does. The server that shares it drops it.
+func KeepSchema() Option {
+	return WithEnv("GO_DATABASE_KEEPTESTSCHEMA", "true")
+}
+
+// Sharing starts the server on the schema of other, as a second container of the same deployment, or the next start
+// of the same one, does. It has a port of its own.
+func Sharing(other *Server) Option {
+	return WithEnv("GO_DATABASE_TESTCONNECTION", other.connection)
 }
 
 // Main starts the server for the tests of a package, hands it to use (which keeps it where the tests can find it),
@@ -218,7 +232,10 @@ func start(ctx context.Context, opts []Option) (*Server, error) {
 		done <- server.Run(runCtx, []string{"web", "-config", configDir()}, getenv, io.Discard, log)
 	}()
 
-	srv := &Server{URL: "http://127.0.0.1:" + strconv.Itoa(port), Config: cfg, cancel: cancel, done: done, log: log}
+	srv := &Server{
+		URL: "http://127.0.0.1:" + strconv.Itoa(port), Config: cfg,
+		connection: cfg.Database.TestConnection, cancel: cancel, done: done, log: log,
+	}
 
 	if err := srv.waitReady(ctx); err != nil {
 		cancel()
@@ -226,7 +243,7 @@ func start(ctx context.Context, opts []Option) (*Server, error) {
 		return nil, errors.Join(err, srv.waitDone())
 	}
 
-	if srv.DB, err = pgxpool.New(ctx, database); err != nil {
+	if srv.DB, err = pgxpool.New(ctx, cfg.Database.TestConnection); err != nil {
 		cancel()
 
 		return nil, errors.Join(fmt.Errorf("cannot connect to the test database: %w", err), srv.waitDone())
@@ -279,8 +296,19 @@ func (s *Server) waitDone() error {
 	}
 }
 
+// Stop stops the server before the test ends, as a deployment stops a container: it stops serving, and what it runs
+// in the background stops in the middle of what it was doing. Its schema is dropped unless it was started with
+// KeepSchema.
+func (s *Server) Stop(t *testing.T) {
+	t.Helper()
+
+	if err := s.stop(); err != nil {
+		t.Fatalf("servertest: %v", err)
+	}
+}
+
 // stop shuts the server down, once: the pool of the tests first, then server.Run, which stops serving and drops
-// the schema. It returns what went wrong, and a server that stopped for any reason other than
+// the schema (unless KeepSchema). It returns what went wrong, and a server that stopped for any reason other than
 // being told to is one of them.
 func (s *Server) stop() error {
 	s.stopped.Do(func() {

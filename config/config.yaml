@@ -38,7 +38,7 @@ cache:
 
 database:
   # Application data lives in PostgreSQL. Migrations are embedded in the binary and applied by the migrate-*
-  # make targets (and, in the test environment, by the server itself on a throwaway schema).
+  # just recipes (and, in the test environment, by the server itself on a throwaway schema).
   connection: "postgres://leango:leango@localhost:5432/leango?sslmode=disable"
   # Used when the environment is "test". Empty by default: the tests start a throwaway postgres container
   # (pkg/testdb), so no local database is needed. CI points them at its postgres service with
@@ -48,3 +48,5 @@ database:
   # created on startup and dropped on shutdown. Example:
   #   postgres://leango:leango@localhost:5432/leango_test?sslmode=disable&search_path=test_$RAND
   testConnection: ""
+  # Test environment only: leave the test schema when the server stops, for a test that restarts the server on it.
+  keepTestSchema: false
