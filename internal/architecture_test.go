@@ -22,7 +22,7 @@ import (
 const module = "github.com/tung-dnt/lean-go"
 
 // domains are the business domains: each is ONE flat package, internal/<domain>, and the other domains it may import.
-// A domain that builds on another (a search over a catalog, say) lists it here. This is the table of README.md's
+// A domain that builds on another (a search over a catalog, say) lists it here. This is the table of LEANGO.md's
 // "Architecture": change both together.
 var domains = map[string][]string{
 	"auth": nil,
@@ -248,7 +248,7 @@ func goImports(t *testing.T, root string) map[string][]string {
 }
 
 // webAreas are the folders web/js is cut into, and the other areas each may import: an area always imports its own
-// files. The root files, webRootFiles, import every area. This is the table of README.md's "Architecture"
+// files. The root files, webRootFiles, import every area. This is the table of LEANGO.md's "Architecture"
 // (Frontend): change both together.
 var webAreas = map[string][]string{
 	"shell": nil,
@@ -434,7 +434,7 @@ func webForbidden(rel, spec string) string {
 		return ""
 	}
 
-	rule := "not an edge of the area table (README.md, Architecture): " + from + " imports only its own files"
+	rule := "not an edge of the area table (LEANGO.md, Architecture): " + from + " imports only its own files"
 	if others := webAreas[from]; len(others) > 0 {
 		rule += " and those of " + strings.Join(others, ", ")
 	}

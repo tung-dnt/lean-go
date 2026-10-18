@@ -9,7 +9,7 @@
 // Split by concern: a component file registers with Alpine and holds UI state;
 // every other file of an area is framework-free data/platform logic. The areas
 // import each other only along the edges that internal/architecture_test.go
-// holds them to (README.md, Architecture), and this file, which imports every
+// holds them to (LEANGO.md, Architecture), and this file, which imports every
 // area, is imported by app.ts alone. For heavy imperative widgets (charts,
 // canvas, third-party libs), give the component init()/destroy() so setup and
 // teardown are lifecycle-managed across swaps.

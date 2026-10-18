@@ -1,0 +1,5 @@
+# Background work
+
+Work that cannot finish inside a request. Why it is built this way: [ADR 0002](../adr/0002-background-work-goroutine.md).
+
+- **Background work.** There is no task queue. Work that cannot finish inside a request is a row in PostgreSQL (its status and attempts) and one goroutine that `Run` starts and stops with its context (`sync.WaitGroup.Go`, waited for before the pool closes). The handler writes the row and wakes the goroutine through a one-slot channel; the goroutine reads what to do from the database, never from the signal. Its first pass after a start runs the rows a dead process left half done, so a run must be idempotent (settle the row and write its result in one transaction that locks the row first). A run that failed for a fault waits a configured backoff before it is run again, without holding the other rows back. Test it end to end, with a restart: `servertest.Start(t, servertest.KeepSchema())`, `srv.Stop(t)`, then `servertest.Start(t, servertest.Sharing(srv))`. See `docs/adr/0002-background-work-goroutine.md`.

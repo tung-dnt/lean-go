@@ -18,8 +18,7 @@ public/static/main.css
 
 docs/
 scripts/
-README.md
-PAGODA.md
+*.md
 LICENSE
 .air.toml
 sqlc.yaml
