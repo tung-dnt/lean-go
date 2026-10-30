@@ -3,7 +3,7 @@
   "private": true,
   "description": "UI bundle sources: htmx + Alpine are bundled by `go tool esbuild` into public/static/js/app.js (single source of truth for versions); dynamic import()s are split into public/static/js/chunks/. Bun installs the packages (see `just bun-install`). The bundle is build output (gitignored), produced by `just js` locally and in the Docker build.",
   "scripts": {
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "bunx --bun tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "alpinejs": "3.17.5",

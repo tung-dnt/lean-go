@@ -148,9 +148,9 @@ deps:
 
 # Fail when duplicated code (Go, TS, CSS; tests and generated code excluded) passes the threshold in .jscpd.json
 dupes:
-    # Pinned and run with bun x, like the scanners above, so it stays out of bun.lock: its file walker pulls in
+    # Pinned and run with `bun x --bun`, so jscpd and its dependency tree use Bun and stay out of bun.lock:
     # braces@3.0.3 (GHSA-vfj7-8cjw-p6xm, no fixed version), which just deps would otherwise report.
-    bun x jscpd@4.3.0 --config .jscpd.json .
+    bun x --bun jscpd@4.3.0 --config .jscpd.json .
 
 # Everything CI and a finished task must pass
 check: sqlc-verify sqlc-vet lint vuln types secrets deps dupes test build

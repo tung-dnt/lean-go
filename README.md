@@ -34,6 +34,8 @@ just test    # go test -race -coverprofile=cover.out ./... (builds main.css and 
 just check   # sqlc-verify, sqlc-vet, lint, vuln, types, secrets, deps, dupes, test, build: what a finished task must pass
 ```
 
+JavaScript package tools run with Bun as the runtime (`bunx --bun` / `bun x --bun`), not just as packages installed by Bun; avoid bare binaries and Node-based `npx` launches.
+
 ## Domains
 
 _(One row per package under `internal/`, and what it owns. Which domain may import which is held by

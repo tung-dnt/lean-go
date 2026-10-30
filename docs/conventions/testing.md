@@ -1,5 +1,6 @@
 # Tests
 
+JavaScript package CLIs invoked by project commands must run under Bun explicitly (`bunx --bun` or `bun x --bun`); don't rely on a Node shebang or assume that installing packages with Bun also selects their runtime.
 Test behavior end to end first: exercise the real server, handlers and PostgreSQL with the request a browser makes, then implement the change. See `internal/note/note_test.go` for the worked example.
 
 ## End-to-end tests

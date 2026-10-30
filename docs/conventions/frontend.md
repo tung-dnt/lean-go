@@ -1,6 +1,7 @@
 # Frontend
 
 Frontend code lives in `web/js`; the area map and build are in [LEANGO.md](../../LEANGO.md#tests-and-browser-areas). JavaScript is organized by area and Alpine component, not by a second global app framework.
+Run JavaScript tooling with Bun as the runtime, not merely as the package manager. **Do:** use explicit Bun runtime selection for package CLIs (`bunx --bun`, `bun x --bun`) and in package scripts. **Don't:** invoke a package binary bare (`tsc`, `npx`, or `bun x` without `--bun`), because its Node shebang can select Node.
 
 **Do:** put a component in its area folder (for example `web/js/note/charCount.ts`), register it in `web/js/register.ts`, and name it in markup with `x-data`. Treat each `data-*` attribute read by the component as an interface with the server-rendered view; document that contract on both sides. If adding an area or an edge between areas, update the `webAreas` allowlist in the architecture test and the area map in [LEANGO.md](../../LEANGO.md#tests-and-browser-areas).
 
