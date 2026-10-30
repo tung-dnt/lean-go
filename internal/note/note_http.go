@@ -2,9 +2,9 @@
 // and the admin may delete one. It is here to show the shape of a domain, not to be kept: copy it to start a new one
 // and delete it when the first real domain exists.
 //
-// A domain is one flat package: <domain>.go holds the handler makers and the logic, views.go the gomponents, and the
-// tests are end to end, in the external package (note_test) through internal/server/servertest. A handler is made by
-// HandleX(deps...) http.Handler, taking only what it uses, and internal/server/routes.go lists its routes.
+// A domain is one flat package: note_http.go holds handlers and note_views.go the gomponents. Tests use the
+// external package (note_test) through internal/server/servertest. HandleX(deps...) takes only what it uses;
+// internal/server/routes.go lists every route. Multi-step workflows get concern-prefixed definition and step files.
 //
 // note is a leaf domain: it imports no other.
 package note
