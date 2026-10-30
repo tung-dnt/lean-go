@@ -52,9 +52,9 @@ func CacheControl(maxAge time.Duration) Middleware {
 	}
 }
 
-// CacheBoostedPages makes htmx-ext-preload effective: it marks boosted GET page
-// responses as privately cacheable for maxAge, so a warmed (preloaded) navigation
-// can be served from the browser's own cache on click instead of re-fetched.
+// CacheBoostedPages marks boosted GET page responses as privately cacheable for
+// maxAge. The htmx v4 preload extension can reuse its pending fetch on click;
+// normal boosted requests can also reuse a fresh browser-cache response.
 //
 // Private (never a shared/CDN cache) because these pages are per-user. Scoped to
 // boosted requests, which always render the full page (see ui.Render) —

@@ -6,12 +6,11 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "alpinejs": "^3.16.0",
-    "htmx-ext-preload": "^2.1.2",
-    "htmx.org": "^2.0.10"
+    "alpinejs": "3.17.5",
+    "htmx.org": "4.0.0"
   },
   "devDependencies": {
-    "@types/alpinejs": "^3.13.0",
+    "@types/alpinejs": "3.17.0",
     "typescript": "^5.6.0"
   }
 }

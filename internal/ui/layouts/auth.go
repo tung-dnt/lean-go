@@ -43,7 +43,7 @@ func document(r *ui.Request, body ...g.Node) g.Node {
 				components.CSS(),
 				components.JS(),
 			),
-			h.Body(body...),
+			h.Body(g.Attr("x-data", ""), g.Group(body)),
 		),
 	)
 }

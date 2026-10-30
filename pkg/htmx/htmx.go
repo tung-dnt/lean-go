@@ -5,49 +5,43 @@ import (
 	"net/http"
 )
 
-// Request headers: https://htmx.org/docs/#request-headers
+// Request headers: https://four.htmx.org/reference/headers/HX-Source
 const (
-	HeaderBoosted               = "HX-Boosted"
-	HeaderHistoryRestoreRequest = "HX-History-Restore-Request"
-	HeaderPrompt                = "HX-Prompt"
-	HeaderRequest               = "HX-Request"
-	HeaderTarget                = "HX-Target"
-	HeaderTrigger               = "HX-Trigger"
-	HeaderTriggerName           = "HX-Trigger-Name"
+	HeaderBoosted     = "HX-Boosted"
+	HeaderRequest     = "HX-Request"
+	HeaderRequestType = "HX-Request-Type"
+	HeaderSource      = "HX-Source"
+	HeaderTarget      = "HX-Target"
 )
 
-// Response headers: https://htmx.org/docs/#response-headers
+// Response headers: https://four.htmx.org/docs/whats-new-in-htmx-4#response-headers
 const (
-	HeaderPushURL            = "HX-Push-Url"
-	HeaderRedirect           = "HX-Redirect"
-	HeaderReplaceURL         = "HX-Replace-Url"
-	HeaderRefresh            = "HX-Refresh"
-	HeaderTriggerAfterSettle = "HX-Trigger-After-Settle"
-	HeaderTriggerAfterSwap   = "HX-Trigger-After-Swap"
+	HeaderPushURL    = "HX-Push-Url"
+	HeaderRedirect   = "HX-Redirect"
+	HeaderReplaceURL = "HX-Replace-Url"
+	HeaderRefresh    = "HX-Refresh"
+	HeaderTrigger    = "HX-Trigger"
 )
 
 type (
 	// Request contains data that HTMX provides during requests.
 	Request struct {
-		Enabled        bool
-		Boosted        bool
-		HistoryRestore bool
-		Trigger        string
-		TriggerName    string
-		Target         string
-		Prompt         string
+		Enabled bool
+		Boosted bool
+		// Source and Target use htmx v4 identifiers, such as "button#submit".
+		Source      string
+		Target      string
+		RequestType string
 	}
 
 	// Response contain data that the server can communicate back to HTMX.
 	Response struct {
-		PushURL            string
-		Redirect           string
-		Refresh            bool
-		ReplaceURL         string
-		Trigger            string
-		TriggerAfterSwap   string
-		TriggerAfterSettle string
-		NoContent          bool
+		PushURL    string
+		Redirect   string
+		Refresh    bool
+		ReplaceURL string
+		Trigger    string
+		NoContent  bool
 	}
 )
 
@@ -55,13 +49,11 @@ type (
 // zero Request.
 func GetRequest(r *http.Request) Request {
 	return Request{
-		Enabled:        r.Header.Get(HeaderRequest) == "true",
-		Boosted:        r.Header.Get(HeaderBoosted) == "true",
-		Trigger:        r.Header.Get(HeaderTrigger),
-		TriggerName:    r.Header.Get(HeaderTriggerName),
-		Target:         r.Header.Get(HeaderTarget),
-		Prompt:         r.Header.Get(HeaderPrompt),
-		HistoryRestore: r.Header.Get(HeaderHistoryRestoreRequest) == "true",
+		Enabled:     r.Header.Get(HeaderRequest) == "true",
+		Boosted:     r.Header.Get(HeaderBoosted) == "true",
+		Source:      r.Header.Get(HeaderSource),
+		Target:      r.Header.Get(HeaderTarget),
+		RequestType: r.Header.Get(HeaderRequestType),
 	}
 }
 
@@ -81,12 +73,6 @@ func (r Response) Apply(w http.ResponseWriter) {
 	}
 	if r.Trigger != "" {
 		h.Set(HeaderTrigger, r.Trigger)
-	}
-	if r.TriggerAfterSwap != "" {
-		h.Set(HeaderTriggerAfterSwap, r.TriggerAfterSwap)
-	}
-	if r.TriggerAfterSettle != "" {
-		h.Set(HeaderTriggerAfterSettle, r.TriggerAfterSettle)
 	}
 	if r.ReplaceURL != "" {
 		h.Set(HeaderReplaceURL, r.ReplaceURL)

@@ -65,13 +65,9 @@ func sidebarMenu(r *ui.Request) g.Node {
 				components.HxBoost(),
 				// Land boosted navigations at the top of the page instead of
 				// keeping the previous page's scroll position.
-				g.Attr("hx-swap", "innerHTML show:window:top"),
-				// Warm each nav destination on hover so the boosted click can be
-				// served from cache (htmx-ext-preload). Effective because boosted GET
-				// pages are marked privately cacheable (middleware.CacheBoostedPages,
-				// in internal/server/server.go).
-				g.Attr("hx-ext", "preload"),
-				g.Attr("preload", "mouseover"),
+				g.Attr("hx-swap:inherited", "innerHTML show:window:top"),
+				// Only safe navigation destinations preload; GET /logout must not.
+				g.Attr("hx-preload:inherited", "mouseover"),
 				header("General"),
 				components.MenuLink(r, icons.Home(), "Notes", paths.Home),
 				g.If(!r.IsAuth, components.MenuLink(r, icons.Enter(), "Log in", paths.Login)),
@@ -81,7 +77,7 @@ func sidebarMenu(r *ui.Request) g.Node {
 			g.Iff(r.IsAuth, func() g.Node {
 				return h.Ul(
 					components.HxBoost(),
-					g.Attr("hx-swap", "innerHTML show:window:top"),
+					g.Attr("hx-swap:inherited", "innerHTML show:window:top"),
 					header("Account"),
 					components.MenuLink(r, icons.Exit(), "Log out", paths.Logout),
 				)

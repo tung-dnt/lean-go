@@ -375,7 +375,7 @@ func TestArchitecture__WebImportsAreRead(t *testing.T) {
 		{"a dynamic import in single quotes", `const m = await import ( './h' );`, []string{"./h"}},
 		{"a type that names a file", `type M = typeof import("../i");`, []string{"../i"}},
 		{"the folder itself", `import { j } from "."; import { k } from "..";`, []string{".", ".."}},
-		{"an npm package", `import Alpine from "alpinejs"; import "htmx-ext-preload"; const c = await import("cropperjs");`, nil},
+		{"an npm package", `import Alpine from "alpinejs"; import "htmx.org/dist/ext/hx-preload.js"; const c = await import("cropperjs");`, nil},
 		{"a file imported twice", `import type { A } from "./l"; import { b } from "./l";`, []string{"./l"}},
 		{"comments that spell imports", "// import(\"./m\")\n/* import { x } from \"./n\" */\n/**\n * export * from \"./o\";\n */", nil},
 		{"a comment after an import", `import { p } from "./p"; // from "./not"`, []string{"./p"}},
