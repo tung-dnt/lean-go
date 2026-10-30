@@ -1,24 +1,29 @@
 # Tests
 
-Test first: write the end-to-end test through the real server (real handlers, real PostgreSQL), watch it fail for the right reason, then write the code.
+Test behavior end to end first: exercise the real server, handlers and PostgreSQL with the request a browser makes, then implement the change. See `internal/note/note_test.go` for the worked example.
 
-End to end: `servertest.Main` starts the real server (`server.Run`) against a real PostgreSQL, and a test drives it
-with HTTP requests as a browser would (cookie jar, no redirect following, goquery for the markup). A test that has to
-break the database, or count every row, starts a server of its own with `servertest.Start`, and
-`FailQuery(t, table, "ListNotes")` makes one sqlc-named query fail while every other query is the real one. Only pure
-functions and the SQL of `internal/external/db` have unit tests. A test package is the external one of its domain
-(`package note_test`).
+## End-to-end tests
 
-Tests need Docker and nothing else: the first test of each process starts a throwaway `postgres:17-alpine`
-(`pkg/testdb`, testcontainers), and each process isolates itself in a randomly-named schema. Set
-`GO_DATABASE_TESTCONNECTION` to use a database you already have (CI does).
+Tests for a domain live in its external package (for example `package note_test`) and use `internal/server/servertest`. The server imports every domain, so an in-package test that imports the server would create an import cycle. One `TestMain` starts the shared real server:
 
-- **End-to-end tests.** Tests are in the external package of the domain (`package note_test`), never in the package itself (the server imports every domain, so a test that imports the server from inside would be an import cycle); pure-function tests may stay internal. One `TestMain` starts the real server:
+```go
+var srv *servertest.Server
 
-  ```go
-  var srv *servertest.Server
+func TestMain(m *testing.M) {
+    os.Exit(servertest.Main(m, func(s *servertest.Server) { srv = s }))
+}
+```
 
-  func TestMain(m *testing.M) { os.Exit(servertest.Main(m, func(s *servertest.Server) { srv = s })) }
-  ```
+Drive it as a browser with `servertest.NewVisitor(t)` (cookie jar; redirects are not followed), `srv.Visit`, `srv.PostForm`, `srv.LogIn`/`LogInAs`, and `servertest.Fragment` for HTML. Use `srv.NewRequest` plus `srv.Do` for custom headers. `srv.Queries` and `srv.DB` prepare or inspect rows. The package's tests share a database, so create uniquely named fixtures and clean up where appropriate.
 
-  and a test drives it as a browser does: `visitor := servertest.NewVisitor(t)` (cookie jar, no redirect following), `srv.Visit(t, visitor, http.MethodGet, paths.Login)`, `srv.PostForm`, `srv.LogIn`, `srv.LogInAs(t, admin)`, `srv.NewAccount`, `srv.NewRequest`+`srv.Do` for headers, `servertest.Fragment` (goquery). `srv.Queries`/`srv.DB` make rows. `servertest.Start(t, servertest.WithEnv(...))` is a server of its own, with a schema of its own, for a test that must break the database, count every row, or change the configuration. The database is broken at one query, the real one, with `srv.FailQuery(t, table, query)` (the query that sqlc named so fails with "boom" when it reads the table) or `srv.HideRows(t, table, query)` (it finds nothing there, as when a row went between two queries of a request), `srv.Heal(t)` takes the fault away, and `srv.Log()` is what the server logged (take its length before a request and read what comes after). The tests of a package share one database: make what you look for with a name that nothing else has. There is no CSRF token to fetch: a cross-site post is refused by `http.CrossOriginProtection` (a post without `Origin` and `Sec-Fetch-Site`, as a test client sends, is let through). `internal/note/note_test.go` shows each of these.
+Use `servertest.Start(t, servertest.WithEnv(...))` for an isolated server/schema when a test must alter configuration, count all rows, or break the database. `srv.FailQuery(t, table, query)` makes one real sqlc-named query fail with `"boom"`; `srv.HideRows(t, table, query)` makes it return no rows; `srv.Heal(t)` removes the fault and `srv.Log()` exposes server logs. Prefer these targeted faults over replacing the database or mocking handlers.
+
+Tests need Docker for the process's first `postgres:17-alpine` testcontainer (`pkg/testdb`); each process uses a random schema. Set `GO_DATABASE_TESTCONNECTION` to use an existing PostgreSQL test database instead. Cross-origin protection refuses cross-site posts; test clients without `Origin` and `Sec-Fetch-Site` are allowed, so a plain `PostForm` does not need a CSRF-token fetch.
+
+## Unit tests and database behavior
+
+Keep unit tests for pure functions and SQL-specific behavior in `internal/external/db`. The generic contract tests for `pkg/workflow` and `pkg/worker` are also an exception: package-level tests should exercise graph validation, Start/Run/Advance behavior, Commit rollback, conflict/replay semantics, OnError result/error outcomes, the initial Work callback, wake coalescing, serial callbacks, zero/deadline replacement, independent Tick timing, cancellation/join, and invalid configuration. End-to-end domain tests should prove that the real durable startup scan recovers work. A test-only in-memory `Entity` may model the workflow store contract for runner mechanics, but it does not prove that a domain's real persistence is atomic or durable.
+
+A query with a rule of its own—ordering, locking, or a limit—needs a test proving that rule. Domain persistence, transaction, route, session and authorization behavior should be exercised through the real server and database rather than test-only fake implementations.
+
+**Don't:** make tests pass by weakening assertions or replacing real persistence with a fake that only echoes inputs. Assert observable response status, redirects, rendered markup, persisted state and relevant logs; use isolated server instances when shared state would make a test ambiguous.

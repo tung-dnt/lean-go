@@ -1,6 +1,43 @@
-# Forms and large bodies
+# Forms and large request bodies
 
-How a handler reads what a browser posts. `note.noteForm` and `note.HandleCreate` are the worked example.
+`note.noteForm` and `note.HandleCreate` are the worked example. Form input is decoded and validated by `pkg/form`; request-size and timeout limits are applied at the route.
 
-- **Forms.** A form is a struct with `form:"name"` tags that embeds `form.Submission` and has `Valid(ctx) map[string]string` (keys are the Go field names, values the sentence shown under the field; `note.noteForm`). `form.Decode(r, &in)` fills it from a url-encoded or multipart body (never from the query string), runs `Valid`, and fails only for a body that cannot be read (400/415, or the `*http.MaxBytesError` for a 413); then `in.IsValid()` says whether to draw the form again (`note.HandleCreate`). What only the handler can know goes in with `in.SetFieldError("Field", "...")`. Decode reads at most 1 MiB; the route that takes more says so with `middleware.LargeBody` (below). Files of a multipart body are read with `r.FormFile` after Decode, and `form.Cleanup` (in NewServer) removes the temporary files. Messages: `required` is `form.MsgRequired`, an email check is `form.IsEmail` + `form.MsgEmail`; there are no `validate:` struct tags. A limit the form checks is also a `CHECK` of the table (migration `000002_notes`).
-- **A large body and its 413.** `middleware.LargeBody(limit, timeout, fail)` turns away a body whose `Content-Length` is over `limit` before it reads a byte and caps the rest with `http.MaxBytesReader`; both come out as an `*http.MaxBytesError`, which `layouts.Error` answers with a generic 413 ("That request is too large. It can be up to N MB."). To say the domain's own words, give `LargeBody` an `ErrorFunc` that wraps the error first, and do the same in the handler for the error `form.Decode` returns: `var tooLarge *http.MaxBytesError; if errors.As(err, &tooLarge) { err = httperr.New(http.StatusRequestEntityTooLarge, "...") }`, then `layouts.Error(w, r, err)`. `LargeBody` also raises what `form.Decode` reads of that body from 1 MiB to `limit`.
+## Decode and validate
+
+**Do:** define a form struct with `form:"name"` tags, embed `form.Submission`, and implement `Valid(ctx) map[string]string`. Keys are Go field names; values are field messages. Use `form.Decode` for url-encoded or multipart bodies, then check `IsValid` before writing. Add handler-only validation with `SetFieldError`.
+
+```go
+var in noteForm
+if err := form.Decode(r, &in); err != nil {
+    layouts.Error(w, r, err)
+    return
+}
+if !in.IsValid() {
+    renderListOrFail(w, r, q, &in)
+    return
+}
+// Continue with the validated form.
+```
+
+`Decode` does not read query parameters. It reports unreadable/unsupported bodies (400/415) and size overflow (`*http.MaxBytesError`, 413); invalid field values are represented on the form, not returned as a decode error. Default decode limit is 1 MiB. Multipart files are read with `r.FormFile` after Decode; the server's `form.Cleanup` middleware removes temporary files. Use `form.MsgRequired`, `form.IsEmail` and `form.MsgEmail` for the shared rules—there are no `validate:` tags. Repeat important limits in database constraints so they cannot be bypassed by non-HTTP writes.
+
+**Don't:** read posted fields from `r.URL.Query()`, silently ignore a decode error, or accept a form as valid just because decoding succeeded.
+
+## Routes that accept larger bodies
+
+Apply `middleware.LargeBody(limit, timeout, fail)` to the specific route that needs it. It rejects a known oversized `Content-Length` before reading and caps streaming bodies with `http.MaxBytesReader`; it also raises the form decoder's body allowance to that limit. Both overflow paths produce `*http.MaxBytesError` and normally render the generic 413 message.
+
+If the domain needs its own 413 message, wrap the error in an `ErrorFunc` passed to `LargeBody` and map the decoder's error in the handler too:
+
+```go
+if err := form.Decode(r, &in); err != nil {
+    var tooLarge *http.MaxBytesError
+    if errors.As(err, &tooLarge) {
+        err = httperr.New(http.StatusRequestEntityTooLarge, "This request is too large.")
+    }
+    layouts.Error(w, r, fmt.Errorf("decode submitted form: %w", err))
+    return
+}
+```
+
+Use the route-level body timeout and limit deliberately; do not raise the global limit for one large upload route.

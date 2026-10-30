@@ -1,136 +1,201 @@
 # LEANGO: the lean-go architecture
 
-This project starts from [lean-go](https://github.com/tung-dnt/lean-go), and this file is its architecture reference:
-what the template is, how the code is cut, and which imports are allowed. What the project itself does belongs in
-[README.md](README.md).
+A template for server-rendered Go apps: `net/http`, PostgreSQL through sqlc, gomponents,
+htmx, Alpine, Tailwind and daisyUI. No router framework, ORM, DI container or `init()` registration.
+Application-specific behavior belongs in [README.md](README.md) and feature guides, not here.
+The quality bar is [CONSTRAINTS.md](CONSTRAINTS.md); implementation recipes are in
+[docs/conventions](docs/conventions/), selected by [AGENTS.md](AGENTS.md).
 
-lean-go is a template for a server-rendered Go web app on the standard library: `net/http`, PostgreSQL through sqlc,
-gomponents views, htmx and Alpine. No router framework, no ORM, no DI container. It ships one example domain (`note`)
-and the login of one admin account, so that every rule below has code that follows it and a test that holds it.
+## Start a project
 
-It was extracted from a production app that started from [Pagoda](https://github.com/mikestefanello/pagoda) and
-outgrew its container/Echo structure; [ADR 0001](docs/adr/0001-lean-stdlib-go.md) says why. The quality bar is
-[CONSTRAINTS.md](CONSTRAINTS.md); the recipes for handlers, forms, sessions, tests and the rest are in
-[docs/conventions](docs/conventions/), and [AGENTS.md](AGENTS.md) says which one to read for which change.
+**Do** use GitHub's **Use this template**, clone the new repository, then:
 
-## Start a project from it
+1. Rename the Go module and its Go import paths from `github.com/tung-dnt/lean-go` to your module.
+   Update the `module` constant in `internal/architecture_test.go` too.
+2. Rename `leango` in local database settings, Docker Compose and `package.json` to your app name.
+3. Run `just install && just db-up && just migrate-up && just run`; open <http://localhost:8000>.
+4. Copy the shape of `internal/note` for the first real domain, then remove the example's package,
+   routes, paths, migration, queries, architecture-test row and `web/js/note` area together.
+5. Set the owner/date in `CONSTRAINTS.md` and fill in the README's project-specific sections.
+6. Set `GO_APP_ENCRYPTIONKEY` and database credentials in every live environment.
 
-1. On GitHub, **Use this template** → create your repository, and clone it.
-2. Rename the module and the app (replace `github.com/you/app` and `app`):
+**Don't** ship the public key or local credentials from `config/config.yaml`, keep two competing
+module paths, or leave example routes available just because nothing links to them.
 
-   ```bash
-   go mod edit -module github.com/you/app
-   grep -rl 'github.com/tung-dnt/lean-go' --include='*.go' . | xargs sed -i '' 's#github.com/tung-dnt/lean-go#github.com/you/app#g'
-   grep -rl 'leango' --exclude-dir=node_modules . | xargs sed -i '' 's/leango/app/g'   # db name, user, app name
-   ```
+## Package boundaries
 
-   (`sed -i ''` is macOS; on Linux drop the `''`.) The second line also renames `module` in
-   `internal/architecture_test.go`; set `name` in `package.json` by hand.
-3. `just install && just db-up && just migrate-up && just run`, and open <http://localhost:8000>.
-4. Build your first domain next to `internal/note` (see "Adding a domain"), then delete `note`: its package, its
-   routes, its paths, its migration and queries, its row in the architecture test and `web/js/note`.
-5. Put your name and the date in [CONSTRAINTS.md](CONSTRAINTS.md), and set `GO_APP_ENCRYPTIONKEY` on every live
-   environment: the key in `config/config.yaml` is public.
-6. Fill in the placeholders of [README.md](README.md) with what your project is.
-
-## Architecture
-
-One binary on the standard library: `http.ServeMux` with method and path patterns, middleware as
-`func(http.Handler) http.Handler`, and no router framework, DI container or `init()` registration.
-
-```
-cmd/web/main.go           # calls server.Run(ctx, os.Args, os.Getenv, os.Stdout, os.Stderr), nothing else
-cmd/admin                 # makes the admin account and prints its password once
-internal/
-├── server/               # Run (config, database, sessions, http.Server, shutdown), NewServer (the middleware
-│   │                     #   every page goes through), routes.go (EVERY route), the file, probe and 404 handlers
-│   ├── paths/            #   the typed path of every route (paths.Note(id)): what links, forms and redirects say
-│   └── servertest/       #   the real server for tests: visitor, requests, accounts, fault injection
-├── ui/                   # the page shell: layouts, components, icons, request helpers
-├── auth/                 # /login, /logout, password hashing
-├── note/                 # the example domain: list, post, show, admin delete
-└── external/             # adapters over third-party services
-    └── db/               #   migrations/, queries/, and the Go that sqlc generates from them
-pkg/                      # domain-agnostic code: config, middleware, session, form, pager, log, ...
-web/js/                   # TypeScript bundled into app.js, cut into areas like internal/ is cut into domains
-public/                   # embedded static files (main.css, app.js, images)
+```text
+cmd/web/                 entrypoint: calls server.Run
+cmd/admin/               create the admin account
+internal/server/         config, concrete wiring, routes, middleware, shutdown
+internal/server/paths/   typed paths used by links, forms and redirects
+internal/server/servertest/ real server test harness
+internal/ui/             page shell, layouts and shared components
+internal/<domain>/       one flat package per domain
+internal/external/db/    migrations, SQL queries, generated sqlc code
+pkg/                     domain-independent mechanisms, including workflow and worker
+web/js/                  browser areas with explicit import edges
+public/                  embedded assets
 ```
 
 ```mermaid
 flowchart TD
   cmd["cmd/*"] --> server["internal/server"]
-  server --> domains["internal/&lt;domain&gt;"]
-  domains --> ui["internal/ui"]
-  domains --> ext["internal/external (db)"]
-  domains --> pkg["pkg"]
+  server --> domain["internal/<domain>"]
+  server --> ui["internal/ui"]
+  server --> external["internal/external"]
+  server --> pkg["pkg"]
+  domain --> ui
+  domain --> external
+  domain --> paths["internal/server/paths"]
+  domain --> pkg
+  ui --> paths
   ui --> pkg
-  ext --> pkg
-  server --> ui
-  server --> ext
-  server --> pkg
+  external --> pkg
 ```
 
-**Domains** are one flat package each, split by concern, with no sub-packages: `<domain>.go` (types, rules and
-handlers), `views.go` (gomponents), `state.go` only where a workflow needs it, and the end-to-end tests. Split a file
-further only once it passes ~800 lines. A handler is made by `HandleX(deps...) http.Handler` that takes only what it
-uses, and `internal/server/routes.go` lists every route. `cmd/<binary>` holds entrypoints only (parse config, build,
-run), and the Go that sqlc generates into `internal/external/db` is never edited by hand.
+**Do** inspect `pkg/` before implementing a mechanism. Read its contract and callers and reuse
+what fits. Keep third-party SDK adapters under `internal/external`; generated sqlc files are never
+hand-edited. Add any cross-domain import explicitly to `domains` in `internal/architecture_test.go`.
+Domains link to each other's pages through typed paths instead of importing each other's handlers.
 
-**Edges.** A domain imports `pkg`, `internal/ui`, `internal/external`, `internal/server/paths`, and no other domain
-unless the edge is listed in `domains` of `internal/architecture_test.go`. Domains link to each other's pages through
-the typed path functions of `internal/server/paths` (`paths.Note(id)`), not by importing. `pkg` and
-`internal/external` import no domain, no `internal/server` and no `internal/ui`; `internal/ui` imports no domain and
-nothing of `internal/server` but `internal/server/paths`, which imports nothing of the module (so there is no cycle);
-only `internal/server` imports the domains, and `cmd/*` imports only the server, `pkg` and `internal/external` (plus
-the edges of `cmdAllowed`: `cmd/admin` also imports `auth`). The libraries the standard library replaced (echo,
-gorilla, go-playground/validator, chi) are not imported anywhere, and a third-party SDK only under
-`internal/external`. `internal/architecture_test.go` checks every import against these rules, and the same for the
-imports of `web/js`, so a new edge fails the build until the rule and this paragraph change together.
+**Don't** import a domain, server or UI from `pkg` or `internal/external`. UI imports no domain and
+only `internal/server/paths` from server; paths imports nothing from the module. `cmd/*` imports
+server, pkg and external plus explicitly listed `cmdAllowed` edges (`cmd/admin` uses auth).
+The architecture test enforces these edges and rejects the router/validation libraries replaced
+by the standard library.
 
-**Request path.** Everything a page goes through is in `NewServer`, in order and with the reason for each place:
+## Flat domains, named by concern and role
 
-```mermaid
-flowchart LR
-  req([request]) --> g["HTTPSRedirect? · config · logger · security headers"]
-  g --> bare{"file or /healthz?"}
-  bare -- yes --> mux
-  bare -- no --> p["trailing slash · request id · access log · recover · gzip · timeout · form cleanup · cross-origin · session · load user · /admin guard · boosted cache"]
-  p --> mux["ServeMux (routes.go)"]
-  mux --> h["HandleX(deps)"]
+**Do** keep related functions in one package and name files so a reader can locate a concern without
+opening every file. One example domain, including an optional workflow's file layout:
+
+```text
+internal/note/
+  note_http.go
+  note_views.go
+  note_test.go
+  publication_api.go
+  publication_http.go
+  publication_views.go
+  publication_store.go
+  publication_worker.go
+  publication_workflow_definition.go
+  publication_workflow_prepare.go
+  publication_workflow_publish.go
+  publication_workflow_error.go
 ```
 
-### Adding a domain
+Only `note_http.go`, `note_views.go` and `note_test.go` are supplied in this example domain.
+The `publication_*` entries show where a real multi-step concern would go; simple note CRUD
+needs neither a workflow nor a background worker.
 
-1. Create the flat package `internal/<d>/` with its `HandleX` makers, its `views.go`, and an external test package
-   (`<d>_test`) that starts the server with `servertest.Main`. Copy `internal/note` as the starting point.
-2. Add a migration (`just migrate-new <name>`) and its queries under `internal/external/db/queries/`, then
-   `just sqlc`.
-3. Add its routes to `internal/server/routes.go` and its paths to `internal/server/paths`, with a row for each in
-   `internal/server/paths_test.go`.
-4. List it in `domains` of `internal/architecture_test.go` (and any other domain it may import).
-5. `just check`.
-
-The recipe for each step is in [docs/conventions](docs/conventions/): routes and paths, handlers and errors, forms,
-sessions, tests, data.
-
-### Tests
-
-Every domain is tested end to end: the real server against a real PostgreSQL, driven over HTTP as a browser would.
-Tests need Docker and nothing else. How to write one: [docs/conventions/testing.md](docs/conventions/testing.md).
-
-### Frontend
-
-`web/js` is the TypeScript that `just js` bundles with esbuild into `public/static/js/app.js` (htmx and Alpine
-included, so nothing loads from a CDN; a dynamic `import()` becomes a chunk of its own). It is cut into area folders
-the way `internal/` is cut into domains, and `internal/architecture_test.go` holds its imports to a table too:
-
-| Where | Imports |
+| File pattern | Owns |
 |---|---|
-| `app.ts` (the entry), `register.ts` (the Alpine registry), `globals.d.ts` | every area, and each other |
-| `note/`: the character count of the note form | `shell/` |
-| `shell/`: htmx behaviour (view transitions, error pages swapped in) | no other area |
+| `<concern>_api.go` | Domain entrypoints and concrete construction |
+| `<concern>_http.go` | Handler makers, HTTP input and response mapping |
+| `<concern>_views.go` | That concern's gomponents and rendering |
+| `<concern>_query.go`, `<concern>_policy.go` | Reads or pure decisions when they merit a separate file |
+| `<concern>_store.go` | SQL/transaction adapter and persistence invariants |
+| `<concern>_worker.go` | Domain callbacks, durable scanning and scheduling policy |
+| `<concern>_workflow_definition.go` | Complete graph, states, guards, retry/error policy and callback wiring |
+| `<concern>_workflow_<step>.go` | One step's replay-safe Do and transactional Commit, kept together |
 
-A component is an Alpine component in its area, registered in `register.ts` and named in the markup with `x-data`
-(`charCount` in `internal/note/views.go`); the recipe is [docs/conventions/frontend.md](docs/conventions/frontend.md).
-A new area, or an edge the table lacks, is a row here and in `webAreas` in the test. Styles are Tailwind + daisyUI,
-built by the standalone Tailwind CLI from the classes in `internal/**/*.go` (`tailwind.css`).
+A second workflow uses another concern prefix in the same flat domain. Not every role needs a file:
+keep small cohesive code together and split along a real role, not a line-count target.
+
+**Don't** introduce `workflows/<name>/`, `handlers/` or `services/` subpackages to organize one domain,
+put every view into `views.go`, or add a service/interface layer that only forwards calls.
+
+**Read a flow in this order:** entrypoint → `<concern>_workflow_definition.go` → every referenced
+step/guard/error callback → store → worker/HTTP caller. The definition must expose the whole graph;
+flat files are discoverable roles, not permission to read one file and guess the rest.
+
+## Choose workflow and worker separately
+
+**Do** use [`pkg/workflow`](pkg/workflow/workflow.go) for operations with persistent stages,
+external approval/wait, retries, restart recovery or coordinated effects. Design the state graph,
+authorization, atomic Commit writes, replay safety and recovery first. Follow the full
+[workflow recipe](docs/conventions/workflow.md) for a definition and callbacks.
+
+```go
+import "github.com/tung-dnt/lean-go/pkg/workflow"
+
+func definePublication[E, Tx any](prepare func(context.Context, E, any) error,
+    publish func(context.Context, Tx, E) error,
+) workflow.Definition[E, Tx] {
+    return workflow.Definition[E, Tx]{
+        Name: "publication",
+        Failed: "failed",
+        Finals: []workflow.State{"published", "failed"},
+        Transitions: []workflow.Transition[E, Tx]{
+            {From: "", To: "queued"},
+            {From: "queued", To: "published", CountsAttempt: true, Do: prepare, Commit: publish,
+                Retry: workflow.RetryPolicy{MaxAttempts: 3, Backoff: time.Second}},
+            {From: "queued", To: "failed", When: workflow.Never[E]},
+        },
+    }
+}
+```
+
+This generic definition fragment also needs `context` and `time` imports. `prepare` must be
+replay-safe; `publish` must use the supplied transaction. Construct the orchestrator with a real
+`Entity` store that enforces the atomic persistence contract; the runner does not supply a database.
+
+**Don't** hand-roll a second state switch/retry orchestrator for these operations. Explain the
+concrete limitation before bypassing the runner. Pure helper chains, read-only queries and one
+atomic mutation remain ordinary code.
+
+**Do** use [`pkg/worker`](pkg/worker/worker.go) to schedule process-owned callbacks:
+
+```go
+w, err := worker.New(worker.Config{
+    Work: drainDueRows, // func(context.Context) time.Time; zero disarms the work deadline
+    Tick: maintain,    // optional func(context.Context); independent of the work deadline
+    Interval: time.Minute,
+})
+if err != nil {
+    return fmt.Errorf("create worker: %w", err)
+}
+```
+
+The process owner starts `Run(ctx)`, cancels it and joins before closing the database.
+Call `Wake()` only after the durable row commits; startup scans recover work even without a wake.
+Read [Background work](docs/conventions/background-work.md) for construction, lifecycle and cancellation.
+
+**Don't** treat a wake hint as a queue, worker `Waiting` as business state, or the runtime as a
+retry/SQL policy layer. Workflow and worker can be used independently; a request can advance a
+workflow without a worker, and a worker can perform maintenance without a workflow.
+
+## Add a domain
+
+**Do** create `internal/<domain>` with concern/role files and external-package HTTP tests.
+Make handlers with `HandleX(deps...) http.Handler`, taking only the dependencies they use.
+
+1. Add migrations/queries and run `just sqlc` when persistence changes.
+2. Register every route in `internal/server/routes.go` and add typed paths under `internal/server/paths`.
+3. Add path test rows and the domain/import edges to `internal/architecture_test.go`.
+4. Run `just check` and exercise the changed behavior.
+
+**Don't** add routes inside domains or make the handler constructor read live dependencies;
+route tests construct handlers with nil dependencies and exercise their routing separately.
+Follow [handlers](docs/conventions/handlers-errors.md), [routes](docs/conventions/routes-paths.md),
+[forms](docs/conventions/forms.md), [sessions](docs/conventions/session-auth.md) and
+[data](docs/conventions/data.md) for concrete code.
+
+## Tests and browser areas
+
+**Do** test domain behavior through the real server and PostgreSQL. Use deterministic package tests
+for the reusable workflow/worker contracts; domain persistence still needs real transaction and
+restart tests. Docker supplies a disposable test database by default; `GO_DATABASE_TESTCONNECTION`
+uses an existing database with a separate `test_$RAND` schema. See [testing](docs/conventions/testing.md).
+
+**Do** bundle htmx and Alpine from npm through esbuild; no CDN. Keep browser areas explicit:
+`app.ts`, `register.ts` and `globals.d.ts` may reference all areas; `note/` may reference `shell/`;
+`shell/` imports no other area. Register Alpine components in `register.ts` and use `x-data` in
+concern views (`charCount` in `internal/note/note_views.go`). Add new areas/edges to `webAreas`
+in the architecture test and update this map together.
+
+**Don't** bypass the import map with relative-path tricks or load unbundled scripts.
+[Frontend](docs/conventions/frontend.md) covers the code; `just js` builds code-split assets and
+`just css` builds the Tailwind/daisyUI classes from Go views.

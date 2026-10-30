@@ -2,9 +2,20 @@
 
 _(One paragraph: what this app does, for whom, and what it is not.)_
 
-Built on the [lean-go](https://github.com/tung-dnt/lean-go) template. How the code is cut, which imports are allowed and
-why: [LEANGO.md](LEANGO.md). The quality bar every change passes: [CONSTRAINTS.md](CONSTRAINTS.md). The recipes for
-handlers, forms, sessions, tests and data: [docs/conventions](docs/conventions/).
+Built on the [lean-go](https://github.com/tung-dnt/lean-go) template. Architecture and file roles:
+[LEANGO.md](LEANGO.md). Quality gates: [CONSTRAINTS.md](CONSTRAINTS.md).
+
+## Implementation recipes
+
+| Change | Guide |
+|---|---|
+| Domain layout, concern/role filenames and import boundaries | [LEANGO](LEANGO.md) |
+| Multi-step state, approval, retries or recovery | [Workflows](docs/conventions/workflow.md) · [`pkg/workflow`](pkg/workflow/workflow.go) |
+| Background callbacks, wake/deadline/tick and shutdown | [Background work](docs/conventions/background-work.md) · [`pkg/worker`](pkg/worker/worker.go) |
+| Handlers, routing, forms, sessions, SQL, frontend and tests | [Conventions](docs/conventions/) |
+
+Inspect `pkg/` before implementing a reusable mechanism. The template supplies the runtimes, not
+an application-specific job queue or persistence adapter; the example note CRUD remains synchronous.
 
 ## Getting started
 

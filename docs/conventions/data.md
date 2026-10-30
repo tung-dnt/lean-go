@@ -1,20 +1,18 @@
-# Data access and the schema
+# Data access and schema
 
-PostgreSQL through sqlc and golang-migrate; no ORM.
+Use PostgreSQL through sqlc and golang-migrate; there is no ORM. SQL is the source of query behavior and generated Go is committed output.
 
-- Data access is sqlc over raw SQL in `internal/external/db/queries`, against the schema in `internal/external/db/migrations` (golang-migrate, versioned; production migrates with the `migrate-*` just recipes or the `migrate/migrate` image). The generated code is in `internal/external/db`: never hand-edit it.
-- Changing data access: `just migrate-new <name>`, edit the SQL in `internal/external/db/migrations` / `internal/external/db/queries`, then `just sqlc`. Commit the regenerated `internal/external/db`. A query whose SQL has a rule of its own (an order, a lock, a limit) gets a test in `internal/external/db`.
+## Do / Don't
+
+**Do:** add versioned schema changes under `internal/external/db/migrations` and SQL queries under `internal/external/db/queries`; regenerate with `just sqlc` and commit the generated `internal/external/db` code. Test queries whose behavior depends on ordering, locking, or limits.
 
 ```bash
-just migrate-new add_posts         # create the migration files
-# ...write the up/down SQL, then add queries under internal/external/db/queries/
-just sqlc                         # regenerate the type-safe Go code
-just migrate-up                   # apply it to the local database
+just migrate-new add_notes_index
+# Edit the up/down migration and add any required query under internal/external/db/queries.
+just sqlc
+just migrate-up
 ```
 
-sqlc reads the migrations directory as its schema source, so the generated code always matches the migrated schema.
-The migrations are also embedded in the binary (`internal/external/db/embed.go`): the test environment migrates its
-throwaway schema with them, while a real environment is migrated with the `migrate-*` targets, never on startup.
+**Don't:** hand-edit generated files, change schema outside a migration, or assume SQL defaults encode application-level validation. Migrations are embedded for test schemas; production schema changes are applied by the `migrate-*` recipes or the `migrate/migrate` image, never automatically on application startup.
 
-Things an ORM would do for you are explicit: emails are lowercased in SQL (`LOWER()`), and a password is hashed with
-`auth.HashPassword` before it is stored.
+sqlc reads migrations as its schema source, keeping generated types aligned with the migrated schema. Keep constraints in the database as well as relevant input checks: for example, a form limit also needs a database `CHECK` so non-HTTP writes cannot bypass it. Make transformations explicit in SQL or domain code; emails are lowercased in SQL (`LOWER()`), and passwords are hashed with `auth.HashPassword` before storage.

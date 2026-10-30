@@ -1,8 +1,28 @@
 # Handlers, errors and rendering
 
-How a handler is made, fails and draws a page. `internal/note` is the worked example (a list, a form, a page, an admin action); `internal/auth` is the second. Read `internal/server/server.go` (the middleware every page goes through, in order) once before you start.
+Use `internal/note` as the worked example; `internal/auth` shows the second domain pattern. Read `internal/server/server.go` before changing middleware behavior.
 
-- **Handler maker.** A handler is made by `HandleX(deps...) http.Handler` that takes only the dependencies it uses and does its one-time preparation in the closure; it is not a method on a struct. A page that needs nothing takes nothing (`auth.HandleLogin`); one that reads the database takes `*db.Queries` (`note.HandleList`). In a handler `r` is the `*http.Request`; the `*ui.Request` a view is drawn from is `page := ui.NewRequest(r)`.
-- **Errors.** Every failure ends in `layouts.Error(w, r, err)` followed by `return`. It logs (5xx as error, 4xx as warning), picks the status and draws the error page: `*httperr.Error{Status, Message}` for a status of your own (`httperr.New(http.StatusNotFound, "no such note")`), `*http.MaxBytesError` for 413, a request that ran out of time for 503, a client that left for nothing, anything else for 500. Never `http.Error`, never write an error status yourself. Wrap what you return with `%w` and the step that failed. Only a 413 shows its `Message` on the page (give it the domain's words); no other message is ever shown.
-- **Rendering.** `ui.Render(w, page, layouts.Primary, node)`; for a status other than 200 `ui.RenderStatus(w, status, page, layout, node)`. Never call `w.WriteHeader` before rendering: the flash messages are taken out of the session while the page is built, and the cookie that says so goes out with the headers. A render error goes to `layouts.Error` (`note.draw`). Views import gomponents as `g`/`h` and the components package qualified: no dot imports.
-- **Requests and time.** Pass `r.Context()` to every query and call: the request deadline (config `app.timeout`) cancels it with the cause `httperr.ErrTimeout`, which the error page answers with a 503. Log with `log.Ctx(r.Context())` (it carries the request id). The client address is `middleware.RealIP(r)`.
+## Handler shape
+
+**Do:** expose a handler maker `HandleX(deps...) http.Handler` that captures only the dependencies it uses and prepares nothing that needs request data. A handler without dependencies takes none; a database-backed handler receives `*db.Queries`. Keep the domain flat and give each handler/view concern its own file. For each request, `r` is `*http.Request`; create the view request with `page := ui.NewRequest(r)`.
+
+Pass `r.Context()` to every query and downstream call. It carries the request deadline configured by `app.timeout`; timeout cancellation uses `httperr.ErrTimeout`. Log with `log.Ctx(r.Context())` to retain the request ID, and obtain the client address with `middleware.RealIP(r)` rather than trusting a raw forwarding header.
+
+## Errors
+
+Every failure goes through the shared error renderer and then returns:
+
+```go
+if err != nil {
+    layouts.Error(w, r, fmt.Errorf("load note: %w", err))
+    return
+}
+```
+
+Wrap errors with `%w` and the failed operation. Use `httperr.New(status, message)` for a deliberate status. `layouts.Error` logs 5xx as errors and 4xx as warnings; it maps `*http.MaxBytesError` to 413, request timeout to 503, and a disconnected client to no response. Other unexpected errors become 500. Only the 413 message is shown to the user; never expose internal error text. Do not call `http.Error` or set an error status directly.
+
+## Render pages
+
+Use `ui.Render(w, page, layouts.Primary, node)` for 200 and `ui.RenderStatus(w, status, page, layout, node)` for another successful/rendered status. Never call `WriteHeader` before rendering: flash messages are consumed while the page is built, and their clearing cookie must be written with the response headers. If drawing a view fails, route the error through `layouts.Error` (see `note.draw`). View files import gomponents as `g`/`h` and qualify the components package; do not use dot imports.
+
+**Don't:** write partial page output before handling an error or bypass the renderer with ad-hoc status/body responses.
