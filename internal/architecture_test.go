@@ -212,30 +212,16 @@ func domainOf(pkg string) string {
 
 // domainFile is LEANGO.md's closed list of file roles in a domain: change both together. A file is
 // <concern>_<role>.go; the bare <pkg>.go is accepted separately by misnamed.
-var domainFile = regexp.MustCompile(`^[a-z][a-z0-9]*(?:_[a-z0-9]+)*_(?:http|views|form|query|policy|api|store|worker|effects|test_support|workflow_definition|workflow_[a-z0-9]+)\.go$`)
+var domainFile = regexp.MustCompile(`^[a-z][a-z0-9]*(?:_[a-z0-9]+)*_(?:http|views|form|store|worker|effects|test_support|workflow_definition|workflow_[a-z0-9]+)\.go$`)
 
 // TestArchitecture__DomainFilesNameAConcernAndRole holds every non-test Go file directly in internal/<domain>
-// (the keys of domains) and in internal/shared/<pkg> to the closed list of file roles of LEANGO.md: it is
-// <pkg>.go or <concern>_<role>.go. No role fits: ask the user; the list changes with LEANGO.md, never by a new
-// suffix.
+// (the keys of domains) to the closed list of file roles of LEANGO.md: it is <pkg>.go or <concern>_<role>.go. One
+// file handles an incoming request, controller and processing logic together, so there is no role that splits a
+// request. No role fits: ask the user; the list changes with LEANGO.md, never by a new suffix. internal/shared
+// and internal/external are not walked: no request is handled there.
 func TestArchitecture__DomainFilesNameAConcernAndRole(t *testing.T) {
-	var dirs []string
-	for name := range domains {
-		dirs = append(dirs, name)
-	}
-	sharedPkgs, err := os.ReadDir("shared")
-	if err != nil {
-		require.ErrorIs(t, err, fs.ErrNotExist, "internal/shared is read")
-	}
-	for _, e := range sharedPkgs {
-		if e.IsDir() {
-			dirs = append(dirs, "shared/"+e.Name())
-		}
-	}
-	slices.Sort(dirs)
-
 	checked := 0
-	for _, dir := range dirs {
+	for _, dir := range slices.Sorted(maps.Keys(domains)) {
 		files, err := os.ReadDir(dir)
 		require.NoError(t, err, "read internal/%s", dir)
 		for _, f := range files {
@@ -243,7 +229,7 @@ func TestArchitecture__DomainFilesNameAConcernAndRole(t *testing.T) {
 				continue
 			}
 			checked++
-			if why := misnamed(path.Base(dir), f.Name()); why != "" {
+			if why := misnamed(dir, f.Name()); why != "" {
 				t.Errorf("internal/%s/%s: %s", dir, f.Name(), why)
 			}
 		}
@@ -261,9 +247,9 @@ func misnamed(pkg, file string) string {
 		return ""
 	}
 
-	return "a file is " + pkg + ".go or <concern>_<role>.go, role one of http, views, form, query, policy, api, store, " +
-		"worker, effects, test_support, workflow_definition, workflow_<step> (LEANGO.md); no role fits: ask the user, " +
-		"never invent a suffix"
+	return "a file is " + pkg + ".go or <concern>_<role>.go, role one of http, views, form, store, worker, effects, " +
+		"test_support, workflow_definition, workflow_<step> (LEANGO.md); one file handles a request, so there is no " +
+		"_api, _query or _policy; no role fits: ask the user, never invent a suffix"
 }
 
 // TestArchitecture__DomainFileNamesAreJudged holds the rule of file names to what it says, on names that need not
@@ -274,14 +260,17 @@ func TestArchitecture__DomainFileNamesAreJudged(t *testing.T) {
 		ok        bool
 	}{
 		{"note", "note.go", true},
-		{"catalog", "catalog.go", true},
+		{"auth", "auth.go", true},
 		{"note", "note_http.go", true},
 		{"note", "note_form.go", true},
 		{"note", "note_effects.go", true},
 		{"note", "publication_workflow_definition.go", true},
 		{"note", "publication_workflow_publish.go", true},
 		{"note", "publication_test_support.go", true},
-		{"catalog", "catalog_delete_api.go", true},
+		{"note", "publication_store.go", true},
+		{"note", "catalog_delete_api.go", false},
+		{"note", "folder_query.go", false},
+		{"note", "archive_policy.go", false},
 		{"note", "http.go", false},
 		{"note", "workflow_definition.go", false},
 		{"note", "auth.go", false},

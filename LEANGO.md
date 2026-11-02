@@ -80,9 +80,9 @@ internal/note/
   note_http.go
   note_views.go
   note_test.go
-  publication_api.go
   publication_http.go
   publication_views.go
+  publication_form.go
   publication_store.go
   publication_worker.go
   publication_workflow_definition.go
@@ -95,35 +95,40 @@ Only `note_http.go`, `note_views.go` and `note_test.go` are supplied in this exa
 The `publication_*` entries show where a real multi-step concern would go; simple note CRUD
 needs neither a workflow nor a background worker.
 
-Every non-test `.go` file directly in `internal/<domain>` or `internal/shared/<pkg>` is either
-`<pkg>.go` or `<concern>_<role>.go`, with a role from this closed list:
+Every non-test `.go` file directly in `internal/<domain>` is either `<pkg>.go` or
+`<concern>_<role>.go`, with a role from this closed list:
 
 | File pattern | Owns |
 |---|---|
-| `<concern>_http.go` | The controller: handler makers, HTTP input and response mapping; calls domain functions directly |
+| `<concern>_http.go` | One file handles an incoming request: the controller and all its processing logic (reads, decisions, entrypoints) together |
 | `<concern>_views.go` | That concern's gomponents and rendering |
 | `<concern>_form.go` | Reading and validating request input into typed values |
-| `<concern>_query.go` | Reads when they merit a separate file |
-| `<concern>_policy.go` | Pure decisions |
-| `<concern>_api.go` | Domain entrypoints and concrete construction |
-| `<concern>_store.go` | SQL/transaction adapter and persistence invariants |
-| `<concern>_worker.go` | Domain callbacks, durable scanning and scheduling policy |
+| `<concern>_store.go` | SQL/transaction adapter and persistence invariants, only for persistence used by more than one role (HTTP, worker, workflow step, command) |
+| `<concern>_worker.go` | Domain callbacks, durable scanning and scheduling policy, with the logic only the worker uses |
 | `<concern>_effects.go` | Durable external-effect handling: the outbox of post-commit work (storage cleanup, deliveries) and its drainer |
 | `<concern>_test_support.go` | Exported test seams in production code, used only by the package's `test/` folder; the application never calls them |
 | `<concern>_workflow_definition.go` | Complete graph, states, guards, retry/error policy and callback wiring |
 | `<concern>_workflow_<step>.go` | One step's replay-safe Do and transactional Commit, kept together |
 | `<pkg>.go` | Only the package doc, types, constants and sentinel errors shared by two or more concerns, and methods on those types |
 
-`<pkg>.go` carries the package's own name (`note.go` in `internal/note`); it holds no handler, query
-or SQL. The architecture test enforces the file names; the content rule is a review rule.
+`<pkg>.go` carries the package's own name (`note.go` in `internal/note`); it holds no function other
+than methods on its types: no handler, query or SQL. `internal/shared/<concern>` and
+`internal/external/<system>` are not held to this list: no request is handled there. The architecture
+test enforces the file names; the content rule is a review rule.
+
+**Place each function in exactly one file, by its callers.** Used by one `_http.go` file only: into
+that file. Used only by one workflow step, worker or effects file: into that file. Persistence used by
+two or more roles: `<concern>_store.go`. Input validation used by several handlers:
+`<concern>_form.go`. Pure logic used by two or more roles: the file of the role that owns the concept.
+A function with no home by these rules is a stop-and-ask case, like a missing role.
 
 **Do** stop and ask the user when no role fits a file. The list is closed: never invent a suffix
 (`_service`, `_types`, `_utils`, `_input`, ...). Adding a role changes this table and
 `domainFile` in `internal/architecture_test.go` together, after the user agrees.
 
 **R1: no layers.** The `<concern>_http.go` file is the controller and calls domain functions directly.
-Never add a `_service.go`, `_controller.go` or any layer that only forwards calls. `_api`, `_store`,
-`_query` and `_policy` keep the meaning in the table.
+Never add a `_service.go`, `_controller.go` or any layer that only forwards calls. There is no `_api`,
+`_query` or `_policy` file: one file handles a request, its processing logic stays beside its controller.
 
 **R2: no domain-to-domain imports.** A domain imports no other domain. Code that two or more domains
 share lives in `internal/shared/<concern>`: one subpackage per concern, never a flat `common` or

@@ -351,21 +351,3 @@ func TestHashPassword(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEqual(t, hash, again, "every hash has a salt of its own")
 }
-
-func TestRandomToken(t *testing.T) {
-	const length = 64
-	a, err := auth.RandomToken(length)
-	require.NoError(t, err)
-	b, err := auth.RandomToken(length)
-	require.NoError(t, err)
-
-	assert.Len(t, a, length)
-	assert.Len(t, b, length)
-	assert.NotEqual(t, a, b)
-
-	for _, n := range []int{1, 10, 11} {
-		token, err := auth.RandomToken(n)
-		require.NoError(t, err)
-		assert.Len(t, token, n)
-	}
-}

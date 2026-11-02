@@ -4,6 +4,8 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
@@ -50,7 +52,7 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 	defer pool.Close()
 
 	// Generate a password, and hash it before storing it.
-	password, err := auth.RandomToken(10)
+	password, err := RandomToken(10)
 	if err != nil {
 		return fmt.Errorf("failed to generate a random password: %w", err)
 	}
@@ -75,4 +77,14 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 	}
 
 	return nil
+}
+
+// RandomToken generates a random token string of a given length
+func RandomToken(length int) (string, error) {
+	b := make([]byte, (length/2)+1)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(b)[:length], nil
 }
