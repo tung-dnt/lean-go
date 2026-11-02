@@ -31,6 +31,7 @@ internal/server/         config, concrete wiring, routes, middleware, shutdown
 internal/server/paths/   typed paths used by links, forms and redirects
 internal/server/servertest/ real server test harness
 internal/ui/             page shell, layouts and shared components
+internal/shared/<concern>/ code two or more domains share, one subpackage per concern
 internal/<domain>/       one flat package per domain
 internal/external/db/    migrations, SQL queries, generated sqlc code
 pkg/                     domain-independent mechanisms, including workflow and worker
@@ -46,7 +47,9 @@ flowchart TD
   server --> external["internal/external"]
   server --> pkg["pkg"]
   domain --> ui
+  domain --> shared["internal/shared/<concern>"]
   domain --> external
+  ui --> shared
   domain --> paths["internal/server/paths"]
   domain --> pkg
   ui --> paths
@@ -56,11 +59,13 @@ flowchart TD
 
 **Do** inspect `pkg/` before implementing a mechanism. Read its contract and callers and reuse
 what fits. Keep third-party SDK adapters under `internal/external`; generated sqlc files are never
-hand-edited. Add any cross-domain import explicitly to `domains` in `internal/architecture_test.go`.
-Domains link to each other's pages through typed paths instead of importing each other's handlers.
+hand-edited. A domain imports no other domain: extract what two domains share into
+`internal/shared/<concern>` (rule R2, "Flat domains"). Domains link to each other's pages through
+typed paths instead of importing each other's handlers.
 
 **Don't** import a domain, server or UI from `pkg` or `internal/external`. UI imports no domain and
-only `internal/server/paths` from server; paths imports nothing from the module. `cmd/*` imports
+only `internal/server/paths` from server; paths imports nothing from the module. `internal/shared`
+imports no domain, server, UI or external, and `pkg` never imports it. `cmd/*` imports
 server, pkg and external plus explicitly listed `cmdAllowed` edges (`cmd/admin` uses auth).
 The architecture test enforces these edges and rejects the router/validation libraries replaced
 by the standard library.
@@ -90,16 +95,41 @@ Only `note_http.go`, `note_views.go` and `note_test.go` are supplied in this exa
 The `publication_*` entries show where a real multi-step concern would go; simple note CRUD
 needs neither a workflow nor a background worker.
 
+Every non-test `.go` file directly in `internal/<domain>` or `internal/shared/<pkg>` is either
+`<pkg>.go` or `<concern>_<role>.go`, with a role from this closed list:
+
 | File pattern | Owns |
 |---|---|
-| `<concern>_api.go` | Domain entrypoints and concrete construction |
-| `<concern>_http.go` | Handler makers, HTTP input and response mapping |
+| `<concern>_http.go` | The controller: handler makers, HTTP input and response mapping; calls domain functions directly |
 | `<concern>_views.go` | That concern's gomponents and rendering |
-| `<concern>_query.go`, `<concern>_policy.go` | Reads or pure decisions when they merit a separate file |
+| `<concern>_form.go` | Reading and validating request input into typed values |
+| `<concern>_query.go` | Reads when they merit a separate file |
+| `<concern>_policy.go` | Pure decisions |
+| `<concern>_api.go` | Domain entrypoints and concrete construction |
 | `<concern>_store.go` | SQL/transaction adapter and persistence invariants |
 | `<concern>_worker.go` | Domain callbacks, durable scanning and scheduling policy |
+| `<concern>_effects.go` | Durable external-effect handling: the outbox of post-commit work (storage cleanup, deliveries) and its drainer |
+| `<concern>_test_support.go` | Exported test seams in production code, used only by the package's `test/` folder; the application never calls them |
 | `<concern>_workflow_definition.go` | Complete graph, states, guards, retry/error policy and callback wiring |
 | `<concern>_workflow_<step>.go` | One step's replay-safe Do and transactional Commit, kept together |
+| `<pkg>.go` | Only the package doc, types, constants and sentinel errors shared by two or more concerns, and methods on those types |
+
+`<pkg>.go` carries the package's own name (`note.go` in `internal/note`); it holds no handler, query
+or SQL. The architecture test enforces the file names; the content rule is a review rule.
+
+**Do** stop and ask the user when no role fits a file. The list is closed: never invent a suffix
+(`_service`, `_types`, `_utils`, `_input`, ...). Adding a role changes this table and
+`domainFile` in `internal/architecture_test.go` together, after the user agrees.
+
+**R1: no layers.** The `<concern>_http.go` file is the controller and calls domain functions directly.
+Never add a `_service.go`, `_controller.go` or any layer that only forwards calls. `_api`, `_store`,
+`_query` and `_policy` keep the meaning in the table.
+
+**R2: no domain-to-domain imports.** A domain imports no other domain. Code that two or more domains
+share lives in `internal/shared/<concern>`: one subpackage per concern, never a flat `common` or
+`util` bucket. Shared views go to `internal/ui/components`. Code with a single consumer stays with
+that consumer. `internal/shared` imports no domain, `internal/server`, `internal/ui` or
+`internal/external`, and `pkg` imports no `internal/shared`.
 
 A second workflow uses another concern prefix in the same flat domain. Not every role needs a file:
 keep small cohesive code together and split along a real role, not a line-count target.

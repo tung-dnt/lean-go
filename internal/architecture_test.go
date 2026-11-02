@@ -22,8 +22,8 @@ import (
 const module = "github.com/tung-dnt/lean-go"
 
 // domains are the business domains: each is ONE flat package, internal/<domain>, and the other domains it may import.
-// A domain that builds on another (a search over a catalog, say) lists it here. This is the table of LEANGO.md's
-// "Architecture": change both together.
+// Every value stays nil: a domain imports no other domain, code that two domains share lives in
+// internal/shared/<concern>. This is the table of LEANGO.md's "Architecture": change both together.
 var domains = map[string][]string{
 	"auth": nil,
 	"note": nil,
@@ -56,8 +56,11 @@ var sdkPrefixes = []string{"github.com/aws/aws-sdk-go-v2"}
 //   - a domain imports no other domain, except along the edges listed in domains.
 //   - internal/server/paths is the one package under internal/server that a domain or internal/ui may import, and it
 //     imports nothing of this module.
-//   - pkg and internal/external import no domain, no internal/server and no internal/ui.
+//   - pkg and internal/external import no domain, no internal/server and no internal/ui; pkg imports no
+//     internal/shared.
 //   - internal/ui imports no domain and nothing of internal/server but its paths.
+//   - internal/shared/<concern> imports no domain, no internal/server, no internal/ui and no internal/external: a
+//     domain imports no other domain, so code that two domains share lives there, one subpackage per concern.
 //   - only internal/server imports the domains, and only cmd/* imports internal/server; cmd/* imports only
 //     internal/server, pkg and internal/external (plus the edges of cmdAllowed).
 //   - no package imports echo, gorilla, go-playground/validator or chi.
@@ -83,7 +86,7 @@ func TestArchitecture__EveryImportFollowsTheEdges(t *testing.T) {
 }
 
 // misplaced says why a package may not be where it is, or "" if it may: everything under internal/ is one of
-// internal/{server,ui,pkg,external} or a flat domain.
+// internal/{server,ui,pkg,external}, internal/shared/<concern> or a flat domain.
 func misplaced(pkg string) string {
 	rest, ok := strings.CutPrefix(pkg, "internal/")
 	if !ok {
@@ -99,9 +102,14 @@ func misplaced(pkg string) string {
 	switch top {
 	case "server", "ui", "pkg", "external":
 		return ""
+	case "shared":
+		if sub == "" || strings.Contains(sub, "/") {
+			return "internal/shared holds one subpackage per concern, internal/shared/<concern>: no Go files in it, no deeper packages"
+		}
+		return ""
 	}
 
-	return "a package under internal/ is internal/server, internal/ui, pkg, internal/external or a domain listed in architecture_test.go"
+	return "a package under internal/ is internal/server, internal/ui, pkg, internal/external, internal/shared/<concern> or a domain listed in architecture_test.go"
 }
 
 // forbidden says why pkg may not import dep, both as import paths (relative to the module root for this module's
@@ -128,6 +136,13 @@ func forbidden(pkg, dep string) string {
 	case isUnder(pkg, "pkg") || isUnder(pkg, "internal/external"):
 		if domainOf(dep) != "" || isUnder(dep, "internal/server") || isUnder(dep, "internal/ui") {
 			return "pkg and internal/external import no domain, no internal/server and no internal/ui"
+		}
+		if isUnder(pkg, "pkg") && isUnder(dep, "internal/shared") {
+			return "pkg imports no internal/shared: pkg is domain-independent and below it"
+		}
+	case isUnder(pkg, "internal/shared"):
+		if domainOf(dep) != "" || isUnder(dep, "internal/server") || isUnder(dep, "internal/ui") || isUnder(dep, "internal/external") {
+			return "internal/shared imports no domain, no internal/server, no internal/ui and no internal/external"
 		}
 	case isUnder(pkg, "internal/ui"):
 		if domainOf(dep) != "" || isServer(dep) {
@@ -193,6 +208,98 @@ func domainOf(pkg string) string {
 	}
 
 	return ""
+}
+
+// domainFile is LEANGO.md's closed list of file roles in a domain: change both together. A file is
+// <concern>_<role>.go; the bare <pkg>.go is accepted separately by misnamed.
+var domainFile = regexp.MustCompile(`^[a-z][a-z0-9]*(?:_[a-z0-9]+)*_(?:http|views|form|query|policy|api|store|worker|effects|test_support|workflow_definition|workflow_[a-z0-9]+)\.go$`)
+
+// TestArchitecture__DomainFilesNameAConcernAndRole holds every non-test Go file directly in internal/<domain>
+// (the keys of domains) and in internal/shared/<pkg> to the closed list of file roles of LEANGO.md: it is
+// <pkg>.go or <concern>_<role>.go. No role fits: ask the user; the list changes with LEANGO.md, never by a new
+// suffix.
+func TestArchitecture__DomainFilesNameAConcernAndRole(t *testing.T) {
+	var dirs []string
+	for name := range domains {
+		dirs = append(dirs, name)
+	}
+	sharedPkgs, err := os.ReadDir("shared")
+	if err != nil {
+		require.ErrorIs(t, err, fs.ErrNotExist, "internal/shared is read")
+	}
+	for _, e := range sharedPkgs {
+		if e.IsDir() {
+			dirs = append(dirs, "shared/"+e.Name())
+		}
+	}
+	slices.Sort(dirs)
+
+	checked := 0
+	for _, dir := range dirs {
+		files, err := os.ReadDir(dir)
+		require.NoError(t, err, "read internal/%s", dir)
+		for _, f := range files {
+			if f.IsDir() || !strings.HasSuffix(f.Name(), ".go") || strings.HasSuffix(f.Name(), "_test.go") {
+				continue
+			}
+			checked++
+			if why := misnamed(path.Base(dir), f.Name()); why != "" {
+				t.Errorf("internal/%s/%s: %s", dir, f.Name(), why)
+			}
+		}
+	}
+	require.NotZero(t, checked, "the walk found domain files")
+}
+
+// misnamed says why file may not be in the package named pkg, or "" if it may: it is <pkg>.go or
+// <concern>_<role>.go with a role of the closed list.
+func misnamed(pkg, file string) string {
+	if file == pkg+".go" {
+		return ""
+	}
+	if domainFile.MatchString(file) {
+		return ""
+	}
+
+	return "a file is " + pkg + ".go or <concern>_<role>.go, role one of http, views, form, query, policy, api, store, " +
+		"worker, effects, test_support, workflow_definition, workflow_<step> (LEANGO.md); no role fits: ask the user, " +
+		"never invent a suffix"
+}
+
+// TestArchitecture__DomainFileNamesAreJudged holds the rule of file names to what it says, on names that need not
+// exist, so that the test above cannot pass because the rule judges nothing.
+func TestArchitecture__DomainFileNamesAreJudged(t *testing.T) {
+	for _, c := range []struct {
+		pkg, file string
+		ok        bool
+	}{
+		{"note", "note.go", true},
+		{"catalog", "catalog.go", true},
+		{"note", "note_http.go", true},
+		{"note", "note_form.go", true},
+		{"note", "note_effects.go", true},
+		{"note", "publication_workflow_definition.go", true},
+		{"note", "publication_workflow_publish.go", true},
+		{"note", "publication_test_support.go", true},
+		{"catalog", "catalog_delete_api.go", true},
+		{"note", "http.go", false},
+		{"note", "workflow_definition.go", false},
+		{"note", "auth.go", false},
+		{"note", "note_service.go", false},
+		{"note", "note_controller.go", false},
+		{"note", "delivery_types.go", false},
+		{"note", "folder_input.go", false},
+		{"note", "utils.go", false},
+		{"note", "Foo_http.go", false},
+		{"note", "publication_workflow_.go", false},
+		{"note", "note_http.txt", false},
+	} {
+		if c.ok {
+			assert.Empty(t, misnamed(c.pkg, c.file), "%s in %s is accepted", c.file, c.pkg)
+		} else {
+			assert.NotEmpty(t, misnamed(c.pkg, c.file), "%s in %s is refused", c.file, c.pkg)
+		}
+	}
 }
 
 // goImports maps every package under root, relative to it, to the import paths of its non-test Go files: this
