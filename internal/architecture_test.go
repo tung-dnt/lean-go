@@ -59,6 +59,8 @@ var sdkPrefixes = []string{"github.com/aws/aws-sdk-go-v2"}
 //   - pkg and internal/external import no domain, no internal/server and no internal/ui; pkg imports no
 //     internal/shared.
 //   - internal/ui imports no domain and nothing of internal/server but its paths.
+//   - internal/ui/pages (the full pages) also imports no internal/external: a page takes plain parameters, and the
+//     handler of its domain maps what it loaded.
 //   - internal/shared/<concern> imports no domain, no internal/server, no internal/ui and no internal/external: a
 //     domain imports no other domain, so code that two domains share lives there, one subpackage per concern.
 //   - only internal/server imports the domains, and only cmd/* imports internal/server; cmd/* imports only
@@ -143,6 +145,10 @@ func forbidden(pkg, dep string) string {
 	case isUnder(pkg, "internal/shared"):
 		if domainOf(dep) != "" || isUnder(dep, "internal/server") || isUnder(dep, "internal/ui") || isUnder(dep, "internal/external") {
 			return "internal/shared imports no domain, no internal/server, no internal/ui and no internal/external"
+		}
+	case isUnder(pkg, pagesPkg):
+		if domainOf(dep) != "" || isServer(dep) || isUnder(dep, "internal/external") {
+			return "internal/ui/pages imports no domain, nothing of internal/server but its paths, and no internal/external: a page is a template that its handler gives plain parameters"
 		}
 	case isUnder(pkg, "internal/ui"):
 		if domainOf(dep) != "" || isServer(dep) {
@@ -288,6 +294,57 @@ func TestArchitecture__DomainFileNamesAreJudged(t *testing.T) {
 		} else {
 			assert.NotEmpty(t, misnamed(c.pkg, c.file), "%s in %s is refused", c.file, c.pkg)
 		}
+	}
+}
+
+// pagesPkg is where every full page of the site is drawn: one file per page, internal/ui/pages/<url>_page.go.
+const pagesPkg = "internal/ui/pages"
+
+// pageFile is LEANGO.md's name of a full page: the segments of its URL path joined by "_", a {wildcard} written
+// without its braces and in lower case, then _page.go; the path "/" is home_page.go.
+var pageFile = regexp.MustCompile(`^[a-z][a-z0-9]*(?:_[a-z0-9]+)*_page\.go$`)
+
+// TestArchitecture__PagesAreOnlyPageFiles holds internal/ui/pages to LEANGO.md's rule: every non-test Go file
+// directly in it is <url>_page.go, and nothing else lives there. A page is a template, so what it needs besides its
+// own file (a fragment, an answer to a post, a helper that a fragment shares) is in the domain or in
+// internal/ui/components; no role fits: ask the user. Its tests are in internal/ui/pages/test.
+func TestArchitecture__PagesAreOnlyPageFiles(t *testing.T) {
+	files, err := os.ReadDir("ui/pages")
+	require.NoError(t, err, "read internal/ui/pages")
+
+	checked := 0
+	for _, f := range files {
+		if f.IsDir() || !strings.HasSuffix(f.Name(), ".go") || strings.HasSuffix(f.Name(), "_test.go") {
+			continue
+		}
+		checked++
+		if !pageFile.MatchString(f.Name()) {
+			t.Errorf("internal/ui/pages/%s: a file is <url>_page.go, the URL path's segments joined by _, {x} as x, / as home (LEANGO.md)", f.Name())
+		}
+	}
+	require.NotZero(t, checked, "the walk found page files")
+}
+
+// TestArchitecture__PageFileNamesAreJudged holds the rule of page file names to what it says, on names that need not
+// exist, so that the test above cannot pass because the rule judges nothing.
+func TestArchitecture__PageFileNamesAreJudged(t *testing.T) {
+	for name, ok := range map[string]bool{
+		"home_page.go":     true,
+		"login_page.go":    true,
+		"notes_id_page.go": true,
+		"admin_content_deletions_operationid_page.go": true,
+		"x.go":              false,
+		"page.go":           false,
+		"_page.go":          false,
+		"notes_id_views.go": false,
+		"login_http.go":     false,
+		"Login_page.go":     false,
+		"admin_content_deletions_operationID_page.go": false,
+		"notes_{id}_page.go":                          false,
+		"login_page.txt":                              false,
+		"helpers.go":                                  false,
+	} {
+		assert.Equal(t, ok, pageFile.MatchString(name), "%s is judged as a page file: %t", name, ok)
 	}
 }
 

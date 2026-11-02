@@ -31,6 +31,7 @@ internal/server/         config, concrete wiring, routes, middleware, shutdown
 internal/server/paths/   typed paths used by links, forms and redirects
 internal/server/servertest/ real server test harness
 internal/ui/             page shell, layouts and shared components
+internal/ui/pages/       every full page, one `<url>_page.go` file each
 internal/shared/<concern>/ code two or more domains share, one subpackage per concern
 internal/<domain>/       one flat package per domain
 internal/external/db/    migrations, SQL queries, generated sqlc code
@@ -64,7 +65,8 @@ hand-edited. A domain imports no other domain: extract what two domains share in
 typed paths instead of importing each other's handlers.
 
 **Don't** import a domain, server or UI from `pkg` or `internal/external`. UI imports no domain and
-only `internal/server/paths` from server; paths imports nothing from the module. `internal/shared`
+only `internal/server/paths` from server; paths imports nothing from the module. `internal/ui/pages`
+also imports nothing of `internal/external`: a page takes plain parameters. `internal/shared`
 imports no domain, server, UI or external, and `pkg` never imports it. `cmd/*` imports
 server, pkg and external plus explicitly listed `cmdAllowed` edges (`cmd/admin` uses auth).
 The architecture test enforces these edges and rejects the router/validation libraries replaced
@@ -78,7 +80,6 @@ opening every file. One example domain, including an optional workflow's file la
 ```text
 internal/note/
   note_http.go
-  note_views.go
   note_test.go
   publication_http.go
   publication_views.go
@@ -91,7 +92,9 @@ internal/note/
   publication_workflow_error.go
 ```
 
-Only `note_http.go`, `note_views.go` and `note_test.go` are supplied in this example domain.
+Only `note_http.go` and `note_test.go` are supplied in this example domain; its pages are
+`internal/ui/pages/home_page.go` and `notes_id_page.go`, and the login page is `login_page.go`. A
+concern with fragments or answers to a post adds a `_views.go` file.
 The `publication_*` entries show where a real multi-step concern would go; simple note CRUD
 needs neither a workflow nor a background worker.
 
@@ -101,7 +104,7 @@ Every non-test `.go` file directly in `internal/<domain>` is either `<pkg>.go` o
 | File pattern | Owns |
 |---|---|
 | `<concern>_http.go` | One file handles an incoming request: the controller and all its processing logic (reads, decisions, entrypoints) together |
-| `<concern>_views.go` | That concern's gomponents and rendering |
+| `<concern>_views.go` | That concern's fragments, answers to a POST/action, SSE frames and JSON; a full page is a template in `internal/ui/pages` |
 | `<concern>_form.go` | Reading and validating request input into typed values |
 | `<concern>_store.go` | SQL/transaction adapter and persistence invariants, only for persistence used by more than one role (HTTP, worker, workflow step, command) |
 | `<concern>_worker.go` | Domain callbacks, durable scanning and scheduling policy, with the logic only the worker uses |
@@ -141,6 +144,28 @@ keep small cohesive code together and split along a real role, not a line-count 
 
 **Don't** introduce `workflows/<name>/`, `handlers/` or `services/` subpackages to organize one domain,
 put every view into `views.go`, or add a service/interface layer that only forwards calls.
+
+### Full pages: `internal/ui/pages`
+
+**Do** draw every full HTML page (a URL a browser navigates to, rendered in the layout) as a render
+function in the one flat package `internal/ui/pages`, in one file named by its URL path: the path's
+segments joined by `_`, a `{x}` wildcard written as lower-case `x`, and the suffix `_page.go`; the path `/`
+is `home_page.go`, `/notes/{id}` is `notes_id_page.go`, `/login` is `login_page.go`. Only `_page.go` files
+(and `test/`) live there, and the architecture test refuses any other file.
+
+A page is a template: it takes its data as plain function parameters (built-ins, `internal/ui/components`
+types, `internal/shared/*` types, `pkg/*`) and imports no domain and nothing of `internal/external`. The
+domain's `<concern>_http.go` handler is the orchestrator: it queries, maps what it loaded to the page's
+parameters, calls the page and chooses the layout (`ui.Render(w, page, layouts.Primary, pages.HomePage(...))`).
+A page the handler also answers a failed post with (the list with the form and its problems) is the same page.
+
+Fragments, answers to a POST/action, SSE frames and JSON stay in the domain's `<concern>_views.go`.
+Markup that a page and a fragment both draw moves to `internal/ui/components`, so that the page and the domain
+never import each other. A handler is the only caller of a page.
+
+**Don't** put a handler, a query, a form type or a fragment in `internal/ui/pages`, give a page a domain
+or `db` type to draw, or add a second page package. A file with no `_page.go` name has no home there: stop
+and ask the user.
 
 **Read a flow in this order:** entrypoint → `<concern>_workflow_definition.go` → every referenced
 step/guard/error callback → store → worker/HTTP caller. The definition must expose the whole graph;
@@ -228,7 +253,7 @@ uses an existing database with a separate `test_$RAND` schema. See [testing](doc
 **Do** bundle htmx and Alpine from npm through esbuild; no CDN. Keep browser areas explicit:
 `app.ts`, `register.ts` and `globals.d.ts` may reference all areas; `note/` may reference `shell/`;
 `shell/` imports no other area. Register Alpine components in `register.ts` and use `x-data` in
-concern views (`charCount` in `internal/note/note_views.go`). Add new areas/edges to `webAreas`
+the views and pages (`charCount` in `internal/ui/pages/home_page.go`). Add new areas/edges to `webAreas`
 in the architecture test and update this map together.
 
 **Don't** bypass the import map with relative-path tricks or load unbundled scripts.

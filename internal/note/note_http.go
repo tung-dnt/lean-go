@@ -2,7 +2,8 @@
 // and the admin may delete one. It is here to show the shape of a domain, not to be kept: copy it to start a new one
 // and delete it when the first real domain exists.
 //
-// A domain is one flat package: note_http.go holds handlers and note_views.go the gomponents. Tests use the
+// A domain is one flat package: note_http.go holds handlers. The full pages they answer with are templates in
+// internal/ui/pages (home_page.go, notes_id_page.go); the handler loads, maps and calls them. Tests use the
 // external package (note_test) through internal/server/servertest. HandleX(deps...) takes only what it uses;
 // internal/server/routes.go lists every route. Multi-step workflows get concern-prefixed definition and step files.
 //
@@ -15,12 +16,17 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
+	g "maragu.dev/gomponents"
 
 	"github.com/tung-dnt/lean-go/internal/external/db"
 	"github.com/tung-dnt/lean-go/internal/server/paths"
+	"github.com/tung-dnt/lean-go/internal/ui"
 	"github.com/tung-dnt/lean-go/internal/ui/layouts"
+	"github.com/tung-dnt/lean-go/internal/ui/pages"
 	"github.com/tung-dnt/lean-go/pkg/form"
 	"github.com/tung-dnt/lean-go/pkg/httperr"
 	"github.com/tung-dnt/lean-go/pkg/msg"
@@ -30,6 +36,41 @@ import (
 
 // PerPage is how many notes a page of the list shows.
 const PerPage = 20
+
+// The limits of a note, which the table holds it to as well (migration 000002).
+const (
+	MaxTitle = 120
+	MaxBody  = 5000
+)
+
+// noteForm is the form of a new note, which is also what a post of it is read into.
+type noteForm struct {
+	Title string `form:"title"`
+	Body  string `form:"body"`
+	form.Submission
+}
+
+// title is the title as it is kept: without the spaces around it.
+func (f *noteForm) title() string {
+	return strings.TrimSpace(f.Title)
+}
+
+// Valid implements form.Validator: a title of up to MaxTitle characters, and a body of up to MaxBody.
+func (f *noteForm) Valid(context.Context) map[string]string {
+	problems := map[string]string{}
+
+	switch title := f.title(); {
+	case title == "":
+		problems["Title"] = form.MsgRequired
+	case utf8.RuneCountInString(title) > MaxTitle:
+		problems["Title"] = "Keep the title to " + strconv.Itoa(MaxTitle) + " characters."
+	}
+	if utf8.RuneCountInString(f.Body) > MaxBody {
+		problems["Body"] = "Keep the note to " + strconv.Itoa(MaxBody) + " characters."
+	}
+
+	return problems
+}
 
 // errNotFound is the answer for an id that is no note's, a malformed one included: the two cannot be told apart from
 // outside.
@@ -93,7 +134,8 @@ func HandleShow(q *db.Queries) http.Handler {
 			return
 		}
 
-		renderShow(w, r, n)
+		page := ui.NewRequest(r)
+		draw(w, r, page, pages.NotePage(page, pages.Note{ID: n.ID, Title: n.Title, Body: n.Body, CreatedAt: n.CreatedAt}))
 	})
 }
 
@@ -138,7 +180,21 @@ func renderListOrFail(w http.ResponseWriter, r *http.Request, q *db.Queries, f *
 		return
 	}
 
-	renderList(w, r, f, notes, pgr)
+	links := make([]pages.NoteLink, len(notes))
+	for i, n := range notes {
+		links[i] = pages.NoteLink{ID: n.ID, Title: n.Title, CreatedAt: n.CreatedAt}
+	}
+
+	page := ui.NewRequest(r)
+	draw(w, r, page, pages.HomePage(page, pages.NewNote{Form: f, Title: f.Title, Body: f.Body, BodyLimit: MaxBody}, links, pgr))
+}
+
+// draw writes the page, which has the content, in the layout of the site. A page that cannot be built is the error
+// page, and nothing of it has been sent.
+func draw(w http.ResponseWriter, r *http.Request, page *ui.Request, content g.Node) {
+	if err := ui.Render(w, page, layouts.Primary, content); err != nil {
+		layouts.Error(w, r, err)
+	}
 }
 
 // loadList is the page of notes that pgr asks for. A page past the end is the last one.

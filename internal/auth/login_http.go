@@ -22,7 +22,9 @@ import (
 
 	"github.com/tung-dnt/lean-go/internal/external/db"
 	"github.com/tung-dnt/lean-go/internal/server/paths"
+	"github.com/tung-dnt/lean-go/internal/ui"
 	"github.com/tung-dnt/lean-go/internal/ui/layouts"
+	"github.com/tung-dnt/lean-go/internal/ui/pages"
 	"github.com/tung-dnt/lean-go/pkg/form"
 	"github.com/tung-dnt/lean-go/pkg/msg"
 	"github.com/tung-dnt/lean-go/pkg/redirect"
@@ -33,11 +35,45 @@ import (
 // that nothing tells a caller which of the two it was.
 var ErrInvalidCredentials = errors.New("invalid credentials")
 
+// loginForm is the form of the login page, which is also what a post of it is read into.
+type loginForm struct {
+	Email    string `form:"email"`
+	Password string `form:"password"`
+	form.Submission
+}
+
+// Valid implements form.Validator: both fields have to be filled in, and the first has to be an address.
+func (f *loginForm) Valid(context.Context) map[string]string {
+	problems := map[string]string{}
+
+	switch {
+	case f.Email == "":
+		problems["Email"] = form.MsgRequired
+	case !form.IsEmail(f.Email):
+		problems["Email"] = form.MsgEmail
+	}
+	if f.Password == "" {
+		problems["Password"] = form.MsgRequired
+	}
+
+	return problems
+}
+
 // HandleLogin is the page of the login form (GET /login). It needs nothing: an empty form is drawn from nothing.
 func HandleLogin() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		renderLogin(w, r, &loginForm{})
 	})
+}
+
+// renderLogin draws the login page for the form, which is empty for the first visit and has what was entered and
+// what is wrong with it after a post. The password is never sent back.
+func renderLogin(w http.ResponseWriter, r *http.Request, f *loginForm) {
+	page := ui.NewRequest(r)
+
+	if err := ui.Render(w, page, layouts.Auth, pages.LoginPage(page, f, f.Email)); err != nil {
+		layouts.Error(w, r, err)
+	}
 }
 
 // HandleLoginSubmit logs the user in (POST /login). A form that is not filled in right, and an email and a
