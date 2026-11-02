@@ -20,7 +20,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
-	g "maragu.dev/gomponents"
 
 	"github.com/tung-dnt/lean-go/internal/external/db"
 	"github.com/tung-dnt/lean-go/internal/server/paths"
@@ -135,7 +134,7 @@ func HandleShow(q *db.Queries) http.Handler {
 		}
 
 		page := ui.NewRequest(r)
-		draw(w, r, page, pages.NotePage(page, pages.Note{ID: n.ID, Title: n.Title, Body: n.Body, CreatedAt: n.CreatedAt}))
+		layouts.Page(w, r, page, pages.NotePage(page, pages.Note{ID: n.ID, Title: n.Title, Body: n.Body, CreatedAt: n.CreatedAt}))
 	})
 }
 
@@ -186,15 +185,7 @@ func renderListOrFail(w http.ResponseWriter, r *http.Request, q *db.Queries, f *
 	}
 
 	page := ui.NewRequest(r)
-	draw(w, r, page, pages.HomePage(page, pages.NewNote{Form: f, Title: f.Title, Body: f.Body, BodyLimit: MaxBody}, links, pgr))
-}
-
-// draw writes the page, which has the content, in the layout of the site. A page that cannot be built is the error
-// page, and nothing of it has been sent.
-func draw(w http.ResponseWriter, r *http.Request, page *ui.Request, content g.Node) {
-	if err := ui.Render(w, page, layouts.Primary, content); err != nil {
-		layouts.Error(w, r, err)
-	}
+	layouts.Page(w, r, page, pages.HomePage(page, pages.NewNote{Form: f, Title: f.Title, Body: f.Body, BodyLimit: MaxBody}, links, pgr))
 }
 
 // loadList is the page of notes that pgr asks for. A page past the end is the last one.

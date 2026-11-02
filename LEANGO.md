@@ -82,7 +82,6 @@ internal/note/
   note_http.go
   note_test.go
   publication_http.go
-  publication_views.go
   publication_form.go
   publication_store.go
   publication_worker.go
@@ -94,7 +93,7 @@ internal/note/
 
 Only `note_http.go` and `note_test.go` are supplied in this example domain; its pages are
 `internal/ui/pages/home_page.go` and `notes_id_page.go`, and the login page is `login_page.go`. A
-concern with fragments or answers to a post adds a `_views.go` file.
+concern's fragments and answers to a post live in its `_http.go` file, beside the handler that returns them.
 The `publication_*` entries show where a real multi-step concern would go; simple note CRUD
 needs neither a workflow nor a background worker.
 
@@ -103,8 +102,7 @@ Every non-test `.go` file directly in `internal/<domain>` is either `<pkg>.go` o
 
 | File pattern | Owns |
 |---|---|
-| `<concern>_http.go` | One file handles an incoming request: the controller and all its processing logic (reads, decisions, entrypoints) together |
-| `<concern>_views.go` | That concern's fragments, answers to a POST/action, SSE frames and JSON; a full page is a template in `internal/ui/pages` |
+| `<concern>_http.go` | One file handles an incoming request: the controller and all its processing logic (reads, decisions, entrypoints) together, and the fragments, answers to a POST/action, SSE frames and JSON it returns; a full page is a template in `internal/ui/pages` |
 | `<concern>_form.go` | Reading and validating request input into typed values |
 | `<concern>_store.go` | SQL/transaction adapter and persistence invariants, only for persistence used by more than one role (HTTP, worker, workflow step, command) |
 | `<concern>_worker.go` | Domain callbacks, durable scanning and scheduling policy, with the logic only the worker uses |
@@ -143,7 +141,7 @@ A second workflow uses another concern prefix in the same flat domain. Not every
 keep small cohesive code together and split along a real role, not a line-count target.
 
 **Don't** introduce `workflows/<name>/`, `handlers/` or `services/` subpackages to organize one domain,
-put every view into `views.go`, or add a service/interface layer that only forwards calls.
+add a `_views.go` file, or add a service/interface layer that only forwards calls.
 
 ### Full pages: `internal/ui/pages`
 
@@ -156,10 +154,10 @@ is `home_page.go`, `/notes/{id}` is `notes_id_page.go`, `/login` is `login_page.
 A page is a template: it takes its data as plain function parameters (built-ins, `internal/ui/components`
 types, `internal/shared/*` types, `pkg/*`) and imports no domain and nothing of `internal/external`. The
 domain's `<concern>_http.go` handler is the orchestrator: it queries, maps what it loaded to the page's
-parameters, calls the page and chooses the layout (`ui.Render(w, page, layouts.Primary, pages.HomePage(...))`).
+parameters, calls the page and chooses the layout (`layouts.Page(w, r, page, pages.HomePage(...))` renders it in `layouts.Primary`, or answers with `layouts.Error` when it cannot be built).
 A page the handler also answers a failed post with (the list with the form and its problems) is the same page.
 
-Fragments, answers to a POST/action, SSE frames and JSON stay in the domain's `<concern>_views.go`.
+Fragments, answers to a POST/action, SSE frames and JSON live in the handler's `<concern>_http.go`; there is no `_views` file.
 Markup that a page and a fragment both draw moves to `internal/ui/components`, so that the page and the domain
 never import each other. A handler is the only caller of a page.
 

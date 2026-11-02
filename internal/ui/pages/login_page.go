@@ -1,8 +1,8 @@
 // Package pages is every full page of the site: a URL that a browser navigates to, drawn in a layout. One file per
 // page, named by the URL path (segments joined by "_", {x} written x, "/" is home) and ending in _page.go. A page is
 // a template: it takes what it draws as plain parameters and imports no domain and nothing of internal/external;
-// the handler of the domain loads, maps and calls it, and chooses the layout. Fragments and answers to a post stay
-// in the domain, and markup that a page and a fragment both draw is in internal/ui/components.
+// the handler of the domain loads, maps and calls it, and chooses the layout. Fragments and answers to a post live
+// in the handler's file of the domain, and markup that a page and a fragment both draw is in internal/ui/components.
 package pages
 
 import (

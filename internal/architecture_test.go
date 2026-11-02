@@ -218,7 +218,7 @@ func domainOf(pkg string) string {
 
 // domainFile is LEANGO.md's closed list of file roles in a domain: change both together. A file is
 // <concern>_<role>.go; the bare <pkg>.go is accepted separately by misnamed.
-var domainFile = regexp.MustCompile(`^[a-z][a-z0-9]*(?:_[a-z0-9]+)*_(?:http|views|form|store|worker|effects|test_support|workflow_definition|workflow_[a-z0-9]+)\.go$`)
+var domainFile = regexp.MustCompile(`^[a-z][a-z0-9]*(?:_[a-z0-9]+)*_(?:http|form|store|worker|effects|test_support|workflow_definition|workflow_[a-z0-9]+)\.go$`)
 
 // TestArchitecture__DomainFilesNameAConcernAndRole holds every non-test Go file directly in internal/<domain>
 // (the keys of domains) to the closed list of file roles of LEANGO.md: it is <pkg>.go or <concern>_<role>.go. One
@@ -253,7 +253,7 @@ func misnamed(pkg, file string) string {
 		return ""
 	}
 
-	return "a file is " + pkg + ".go or <concern>_<role>.go, role one of http, views, form, store, worker, effects, " +
+	return "a file is " + pkg + ".go or <concern>_<role>.go, role one of http, form, store, worker, effects, " +
 		"test_support, workflow_definition, workflow_<step> (LEANGO.md); one file handles a request, so there is no " +
 		"_api, _query or _policy; no role fits: ask the user, never invent a suffix"
 }
@@ -285,6 +285,7 @@ func TestArchitecture__DomainFileNamesAreJudged(t *testing.T) {
 		{"note", "delivery_types.go", false},
 		{"note", "folder_input.go", false},
 		{"note", "utils.go", false},
+		{"note", "note_views.go", false},
 		{"note", "Foo_http.go", false},
 		{"note", "publication_workflow_.go", false},
 		{"note", "note_http.txt", false},
