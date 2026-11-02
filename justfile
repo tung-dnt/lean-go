@@ -119,7 +119,8 @@ watch:
 
 # Run all tests with the race detector (PostgreSQL comes from testcontainers, so Docker must be running; builds the embedded main.css and app.js first)
 test: css js
-    go test -race -coverprofile=cover.out ./...
+    # A domain's tests are in its test/ folder, so -coverpkg=./... is what counts the statements of every package that they run.
+    go test -race -coverprofile=cover.out -coverpkg=./... ./...
 
 # Lint the Go code with golangci-lint (see .golangci.yml)
 lint:

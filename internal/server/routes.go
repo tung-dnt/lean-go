@@ -48,6 +48,7 @@ func addRoutes(mux *http.ServeMux, d deps) error {
 	mux.Handle("GET "+paths.Login, requireNoAuth(auth.HandleLogin()))
 	mux.Handle("POST "+paths.Login, requireNoAuth(auth.HandleLoginSubmit(d.queries)))
 	mux.Handle("GET "+paths.Logout, requireAuth(auth.HandleLogout()))
+	mux.Handle("POST "+paths.Logout, requireAuth(auth.HandleLogoutSubmit()))
 
 	// Note: the example domain. The list is the root of the site, which is why its pattern ends in {$}: a pattern
 	// for "/" alone would be every address that no other route takes. Anyone may post a note; deleting one is

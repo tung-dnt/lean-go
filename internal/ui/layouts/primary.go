@@ -36,8 +36,8 @@ func Primary(r *ui.Request, content g.Node) g.Node {
 	)
 }
 
-// sidebarMenu links only to registered routes: an unregistered route name reverses to an empty
-// href, which would silently reload the current page.
+// sidebarMenu links only to typed paths from internal/server/paths: a path with no route is a failing test in
+// paths_test.go.
 func sidebarMenu(r *ui.Request) g.Node {
 	header := func(text string) g.Node {
 		return h.Li(
@@ -66,14 +66,15 @@ func sidebarMenu(r *ui.Request) g.Node {
 				// Land boosted navigations at the top of the page instead of
 				// keeping the previous page's scroll position.
 				g.Attr("hx-swap:inherited", "innerHTML show:window:top"),
-				// Only safe navigation destinations preload; GET /logout must not.
+				// Only the navigation links of this list are warmed on hover; the account menu below is not.
 				g.Attr("hx-preload:inherited", "mouseover"),
 				header("General"),
 				components.MenuLink(r, icons.Home(), "Notes", paths.Home),
 				g.If(!r.IsAuth, components.MenuLink(r, icons.Enter(), "Log in", paths.Login)),
 			),
-			// Only a logged-in account has any use for this, so it is not even built for anyone else. It is not
-			// warmed on hover like the links above: a GET of /logout logs out.
+			// Only a logged-in account has any use for this, so it is not even built for anyone else. The link opens
+			// the confirmation page (GET /logout), which changes nothing; only the post of its form logs out. It is
+			// not warmed on hover like the links above.
 			g.Iff(r.IsAuth, func() g.Node {
 				return h.Ul(
 					components.HxBoost(),

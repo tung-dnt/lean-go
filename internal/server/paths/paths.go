@@ -21,7 +21,7 @@ const (
 	// Login is the page of the login form, and where the form is posted.
 	Login = "/login"
 
-	// Logout logs the user out.
+	// Logout is the confirmation page of a log out (GET), and where its form is posted to log out.
 	Logout = "/logout"
 
 	// Admin is the root of everything that is for the admin: every path at or below it is held to the admin

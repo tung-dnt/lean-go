@@ -11,7 +11,7 @@ import (
 //
 // The address of the connection is that of the proxy when there is one, so the header X-Forwarded-For is read
 // as well, but not believed from just anyone: a client can write whatever it likes in it, and would pick its
-// own address and walk around anything keyed on it, such as the invite code's rate limit. The header is believed
+// own address and walk around anything keyed on it, such as a per-client limit. The header is believed
 // only as far as the connection comes from a proxy on loopback or a private network (a reverse proxy on the same
 // host or Docker network): the proxies, those addresses, are skipped from the right, and the first address that is
 // not one of them is the client. That is the address the nearest proxy saw, which no one in front of it could

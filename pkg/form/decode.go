@@ -60,7 +60,7 @@ type state interface {
 // Submission that it embeds, for the form to be drawn with. A form with a Valid method has to embed one; Decode
 // refuses a form that does not, since its problems would be lost.
 //
-// The error says why the request cannot be read, and is meant for ui.Error: an *httperr.Error of 400 for a body
+// The error says why the request cannot be read, and is meant for layouts.Error: an *httperr.Error of 400 for a body
 // that is not a form, or of 415 for one of another type, and for a body over the limit of http.MaxBytesReader
 // the *http.MaxBytesError itself, which the error page answers with a 413. The files of a multipart body are
 // not read into dst: take them from r (r.FormFile) after Decode, and add Cleanup to the server's middleware so

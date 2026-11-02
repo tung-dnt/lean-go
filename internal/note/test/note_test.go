@@ -1,4 +1,4 @@
-package note_test
+package notetest
 
 import (
 	"crypto/rand"

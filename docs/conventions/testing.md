@@ -1,11 +1,11 @@
 # Tests
 
 JavaScript package CLIs invoked by project commands must run under Bun explicitly (`bunx --bun` or `bun x --bun`); don't rely on a Node shebang or assume that installing packages with Bun also selects their runtime.
-Test behavior end to end first: exercise the real server, handlers and PostgreSQL with the request a browser makes, then implement the change. See `internal/note/note_test.go` for the worked example.
+Test behavior end to end first: exercise the real server, handlers and PostgreSQL with the request a browser makes, then implement the change. See `internal/note/test/note_test.go` for the worked example.
 
 ## End-to-end tests
 
-Tests for a domain live in its external package (for example `package note_test`) and use `internal/server/servertest`. The server imports every domain, so an in-package test that imports the server would create an import cycle. One `TestMain` starts the shared real server:
+Tests for a domain live in its `test/` folder, `internal/<domain>/test`, which is the package `<domain>test` (for example `package notetest` in `internal/note/test`), and use `internal/server/servertest`; fixtures go in `internal/<domain>/test/testdata`. A domain's own directory holds no `_test.go` file. The server imports every domain, so an in-package test that imports the server would create an import cycle. A test that needs something unexported does not move into the package: export a seam in `<concern>_test_support.go` (the role of that file, [LEANGO.md](../../LEANGO.md)), never `export_test.go`. The tests of every other package (`pkg/*`, `cmd/*`, `internal/server`, `internal/ui`, `internal/external`) stay beside the code. Because a domain's tests run from another package, `just test` passes `-coverpkg=./...` so that the statements of every package they run are counted. One `TestMain` starts the shared real server:
 
 ```go
 var srv *servertest.Server

@@ -23,7 +23,7 @@ const module = "github.com/tung-dnt/lean-go"
 
 // domains are the business domains: each is ONE flat package, internal/<domain>, and the other domains it may import.
 // Every value stays nil: a domain imports no other domain, code that two domains share lives in
-// internal/shared/<concern>. This is the table of LEANGO.md's "Architecture": change both together.
+// internal/shared/<concern>. This is the table of LEANGO.md's "Package boundaries" and "R2": change both together.
 var domains = map[string][]string{
 	"auth": nil,
 	"note": nil,
@@ -52,7 +52,8 @@ var sdkPrefixes = []string{"github.com/aws/aws-sdk-go-v2"}
 // TestArchitecture__EveryImportFollowsTheEdges reads the imports of every package of the repository, its tests
 // excepted, and holds them to the rules of the layout:
 //
-//   - every internal/<domain> is one flat package: it has no sub-packages (testdata excepted).
+//   - every internal/<domain> is one flat package: it has no sub-packages (its test/ folder holds only the _test.go
+//     files and the testdata of its tests, and the tests are not read here).
 //   - a domain imports no other domain, except along the edges listed in domains.
 //   - internal/server/paths is the one package under internal/server that a domain or internal/ui may import, and it
 //     imports nothing of this module.
@@ -312,7 +313,7 @@ var uiSuffix = regexp.MustCompile(`_(page|views|view|component)\.go$`)
 // TestArchitecture__PagesAreOnlyPageFiles holds internal/ui/pages to LEANGO.md's rule: every non-test Go file
 // directly in it is <url>.go, and nothing else lives there. A page is a template, so what it needs besides its
 // own file (a fragment, an answer to a post, a helper that a fragment shares) is in the domain or in
-// internal/ui/components; no role fits: ask the user. Its tests are in internal/ui/pages/test.
+// internal/ui/components; no role fits: ask the user.
 func TestArchitecture__PagesAreOnlyPageFiles(t *testing.T) {
 	files, err := os.ReadDir("ui/pages")
 	require.NoError(t, err, "read internal/ui/pages")
@@ -429,8 +430,8 @@ func goImports(t *testing.T, root string) map[string][]string {
 }
 
 // webAreas are the folders web/js is cut into, and the other areas each may import: an area always imports its own
-// files. The root files, webRootFiles, import every area. This is the table of LEANGO.md's "Architecture"
-// (Frontend): change both together.
+// files. The root files, webRootFiles, import every area. This is the table of LEANGO.md's "Tests and browser
+// areas": change both together.
 var webAreas = map[string][]string{
 	"shell": nil,
 	"note":  {"shell"},
@@ -615,7 +616,7 @@ func webForbidden(rel, spec string) string {
 		return ""
 	}
 
-	rule := "not an edge of the area table (LEANGO.md, Architecture): " + from + " imports only its own files"
+	rule := "not an edge of the area table (LEANGO.md, Tests and browser areas): " + from + " imports only its own files"
 	if others := webAreas[from]; len(others) > 0 {
 		rule += " and those of " + strings.Join(others, ", ")
 	}

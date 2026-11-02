@@ -12,7 +12,8 @@ The quality bar is [CONSTRAINTS.md](CONSTRAINTS.md); implementation recipes are 
 
 1. Rename the Go module and its Go import paths from `github.com/tung-dnt/lean-go` to your module.
    Update the `module` constant in `internal/architecture_test.go` too.
-2. Rename `leango` in local database settings, Docker Compose and `package.json` to your app name.
+2. Rename `leango` in `config/config.yaml`, `justfile`, `docker-compose.yml` and `.github/workflows/test.yml`, and
+   `lean-go-ui` in `package.json`, to your app name.
 3. Run `just install && just db-up && just migrate-up && just run`; open <http://localhost:8000>.
 4. Copy the shape of `internal/note` for the first real domain, then remove the example's package,
    routes, paths, migration, queries, architecture-test row and `web/js/note` area together.
@@ -32,7 +33,8 @@ internal/server/paths/   typed paths used by links, forms and redirects
 internal/server/servertest/ real server test harness
 internal/ui/             page shell, layouts and shared components
 internal/ui/pages/       every full page, one `<url>.go` file each
-internal/shared/<concern>/ code two or more domains share, one subpackage per concern
+internal/shared/<concern>/ code two or more domains share, one subpackage per concern (none in the template;
+                         create `internal/shared/<concern>` when a second domain needs the code)
 internal/<domain>/       one flat package per domain
 internal/external/db/    migrations, SQL queries, generated sqlc code
 pkg/                     domain-independent mechanisms, including workflow and worker
@@ -55,7 +57,9 @@ flowchart TD
   domain --> pkg
   ui --> paths
   ui --> pkg
+  ui -->|"the user row of the session"| external
   external --> pkg
+  pkg -->|"the user row (middleware), the migrations (postgres)"| external
 ```
 
 **Do** inspect `pkg/` before implementing a mechanism. Read its contract and callers and reuse
@@ -64,7 +68,9 @@ hand-edited. A domain imports no other domain: extract what two domains share in
 `internal/shared/<concern>` (rule R2, "Flat domains"). Domains link to each other's pages through
 typed paths instead of importing each other's handlers.
 
-**Don't** import a domain, server or UI from `pkg` or `internal/external`. UI imports no domain and
+**Don't** import a domain, server or UI from `pkg` or `internal/external`; the only imports of
+`internal/external` from `pkg` and `internal/ui` are those of the diagram (the user row, the embedded
+migrations). UI imports no domain and
 only `internal/server/paths` from server; paths imports nothing from the module. `internal/ui/pages`
 also imports nothing of `internal/external`: a page takes plain parameters. `internal/shared`
 imports no domain, server, UI or external, and `pkg` never imports it. `cmd/*` imports
@@ -80,7 +86,6 @@ opening every file. One example domain, including an optional workflow's file la
 ```text
 internal/note/
   note_http.go
-  note_test.go
   publication_http.go
   publication_form.go
   publication_store.go
@@ -89,26 +94,31 @@ internal/note/
   publication_workflow_prepare.go
   publication_workflow_publish.go
   publication_workflow_error.go
+  test/
+    note_test.go
+    testdata/
 ```
 
-Only `note_http.go` and `note_test.go` are supplied in this example domain; its pages are
+Only `note_http.go` and `test/note_test.go` are supplied in this example domain; its pages are
 `internal/ui/pages/home.go` and `notes_id.go`, and the login page is `login.go`. A
 concern's fragments and answers to a post live in its `_http.go` file, beside the handler that returns them.
 The `publication_*` entries show where a real multi-step concern would go; simple note CRUD
-needs neither a workflow nor a background worker.
+needs neither a workflow nor a background worker. A domain's tests are in its `test/` folder (package
+`<domain>test`) with fixtures in `test/testdata`: the folder holds only `_test.go` files and test data, so it is
+not a sub-package of the domain that the architecture test reads.
 
 Every non-test `.go` file directly in `internal/<domain>` is either `<pkg>.go` or
 `<concern>_<role>.go`, with a role from this closed list:
 
 | File pattern | Owns |
 |---|---|
-| `<concern>_http.go` | One file handles an incoming request: the controller and all its processing logic (reads, decisions, entrypoints) together, and the fragments, answers to a POST/action, SSE frames and JSON it returns; a full page is a template in `internal/ui/pages` |
+| `<concern>_http.go` | One file handles an incoming request: the controller (decode the request, enforce boundary checks, return the response) and all its processing logic (queries, validation, calculations), calling domain functions directly. The fragments, answers to a POST/action, SSE frames and JSON that the request returns live here too; a full page is a template in `internal/ui/pages` |
 | `<concern>_form.go` | Reading and validating request input into typed values |
 | `<concern>_store.go` | SQL/transaction adapter and persistence invariants, only for persistence used by more than one role (HTTP, worker, workflow step, command) |
-| `<concern>_worker.go` | Domain callbacks, durable scanning and scheduling policy, with the logic only the worker uses |
+| `<concern>_worker.go` | Business callbacks and scheduling policy supplied to the shared worker runtime; the durable scan the runtime calls is domain code in this file |
 | `<concern>_effects.go` | Durable external-effect handling: the outbox of post-commit work (storage cleanup, deliveries) and its drainer |
-| `<concern>_test_support.go` | Exported test seams in production code, used only by the package's `test/` folder; the application never calls them |
-| `<concern>_workflow_definition.go` | Complete graph, states, guards, retry/error policy and callback wiring |
+| `<concern>_test_support.go` | Exported test seams in production code, used only by the package's `test/` folder (`internal/<domain>/test`); the application never calls them |
+| `<concern>_workflow_definition.go` | States, all edges, handler bindings, retry and error policy |
 | `<concern>_workflow_<step>.go` | One step's replay-safe Do and transactional Commit, kept together |
 | `<pkg>.go` | Only the package doc, types, constants and sentinel errors shared by two or more concerns, and methods on those types |
 
@@ -133,9 +143,12 @@ Never add a `_service.go`, `_controller.go` or any layer that only forwards call
 
 **R2: no domain-to-domain imports.** A domain imports no other domain. Code that two or more domains
 share lives in `internal/shared/<concern>`: one subpackage per concern, never a flat `common` or
-`util` bucket. Shared views go to `internal/ui/components`. Code with a single consumer stays with
+`util` bucket. The template has none yet: create `internal/shared/<concern>` when a second domain needs the
+code. Shared views go to `internal/ui/components`. Code with a single consumer stays with
 that consumer. `internal/shared` imports no domain, `internal/server`, `internal/ui` or
-`internal/external`, and `pkg` imports no `internal/shared`.
+`internal/external`, and `pkg` imports no `internal/shared`. When one domain consumes another's capability,
+prefer a small consumer-owned interface supplied at the composition root (`internal/server`); never create an
+interface solely to fake a test.
 
 A second workflow uses another concern prefix in the same flat domain. Not every role needs a file:
 keep small cohesive code together and split along a real role, not a line-count target.
@@ -149,7 +162,7 @@ add a `_views.go` file, or add a service/interface layer that only forwards call
 function in the one flat package `internal/ui/pages`, in one file named by its URL path: the path's
 segments joined by `_`, a `{x}` wildcard written as lower-case `x`, then `.go` with no suffix (the folder already says it is a page); the path `/`
 is `home.go`, `/notes/{id}` is `notes_id.go`, `/login` is `login.go`. Only those page files
-(and `test/`) live there, and the architecture test refuses any other file. No file anywhere under `internal/ui` carries a role suffix (`_page`, `_views`, `_view`, `_component`): its folder (pages, components, layouts) says what it is.
+live there, and the architecture test refuses any other file. No file anywhere under `internal/ui` carries a role suffix (`_page`, `_views`, `_view`, `_component`): its folder (pages, components, layouts) says what it is.
 
 A page is a template: it takes its data as plain function parameters (built-ins, `internal/ui/components`
 types, `internal/shared/*` types, `pkg/*`) and imports no domain and nothing of `internal/external`. The
@@ -225,9 +238,22 @@ Read [Background work](docs/conventions/background-work.md) for construction, li
 retry/SQL policy layer. Workflow and worker can be used independently; a request can advance a
 workflow without a worker, and a worker can perform maintenance without a workflow.
 
+## HTTP, views and data
+
+**Do** keep HTTP handlers thin around a workflow: a handler decodes and authorizes the request, calls the
+domain's workflow entrypoint and renders the answer; the definition holds the flow. Use raw SQL through the
+generated sqlc code, and bind transactional writes to the transaction they are given. For a workflow, `Do`
+prepares replay-safe work and `Commit` owns the database writes that must be atomic with the status change.
+External cleanup (storage, deliveries) goes through a transactional outbox (`<concern>_effects.go`) when
+durable execution is required, and runs after the commit.
+
+**Don't** write durable workflow status from an HTTP handler, or put business input in `context.Context`:
+pass it as a parameter. The context carries cancellation, deadlines and request-scoped infrastructure such as
+the logger and the session.
+
 ## Add a domain
 
-**Do** create `internal/<domain>` with concern/role files and external-package HTTP tests.
+**Do** create `internal/<domain>` with concern/role files and HTTP tests in `internal/<domain>/test`.
 Make handlers with `HandleX(deps...) http.Handler`, taking only the dependencies they use.
 
 1. Add migrations/queries and run `just sqlc` when persistence changes.
@@ -247,6 +273,13 @@ Follow [handlers](docs/conventions/handlers-errors.md), [routes](docs/convention
 for the reusable workflow/worker contracts; domain persistence still needs real transaction and
 restart tests. Docker supplies a disposable test database by default; `GO_DATABASE_TESTCONNECTION`
 uses an existing database with a separate `test_$RAND` schema. See [testing](docs/conventions/testing.md).
+
+**Do** keep domain tests in `internal/<domain>/test` (package `<domain>test`) and their fixtures in its
+`testdata`; test through exported APIs and the real server. A test that needs an unexported detail gets an
+exported seam in `<concern>_test_support.go`, never an `export_test.go`. `pkg/*` and `cmd/*` keep their tests
+beside the code. Use controlled execution (advance one workflow edge at a time, or call a worker callback
+directly) when asserting an intermediate workflow state, rather than racing a running loop. `just test` runs
+with `-coverpkg=./...` so that the statements a domain's tests run in other packages are counted.
 
 **Do** bundle htmx and Alpine from npm through esbuild; no CDN. Keep browser areas explicit:
 `app.ts`, `register.ts` and `globals.d.ts` may reference all areas; `note/` may reference `shell/`;

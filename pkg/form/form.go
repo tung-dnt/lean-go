@@ -105,8 +105,8 @@ func (f *Submission) FieldHasErrors(fieldName string) bool {
 	return len(f.GetFieldErrors(fieldName)) > 0
 }
 
-// SetFieldError implements Form. The handler uses it for what only it can know, that the invite code was not the
-// right one, say; what the form can check of itself is the work of Valid.
+// SetFieldError implements Form. The handler uses it for what only it can know (for example, a credential
+// that the database rejected); what the form can check of itself is the work of Valid.
 func (f *Submission) SetFieldError(fieldName string, message string) {
 	if f.errors == nil {
 		f.errors = make(map[string][]string)

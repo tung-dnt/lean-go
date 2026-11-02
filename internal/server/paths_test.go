@@ -29,6 +29,7 @@ var routes = []route{
 	{http.MethodGet, paths.Login},
 	{http.MethodPost, paths.Login},
 	{http.MethodGet, paths.Logout},
+	{http.MethodPost, paths.Logout},
 
 	{http.MethodGet, paths.Home},
 	{http.MethodPost, paths.Notes},

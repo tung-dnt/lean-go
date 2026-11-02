@@ -21,7 +21,7 @@ var (
 
 // Set sets a given renderable node in the cache with a given key.
 // You should only cache nodes that are entirely static.
-// This will panic if the node fails to render.
+// If the node fails to render, Set logs the error and caches nothing.
 //
 // To optimize performance, the node will be rendered and converted to a Raw component so the assembly and rendering
 // of the entire, nested node only has to execute once. This can eliminate countless function calls and string building.

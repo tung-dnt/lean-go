@@ -1,5 +1,5 @@
 // Package postgres runs the schema work that the application does itself: applying the embedded migrations, and
-// creating and dropping the disposable schema of a test run. The queries are sqlc's (db/sqlc).
+// creating and dropping the disposable schema of a test run. The queries are sqlc's (internal/external/db).
 package postgres
 
 import (

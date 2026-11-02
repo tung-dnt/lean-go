@@ -21,8 +21,8 @@ import { enableViewTransitions } from "./shell/htmx";
 window.htmx = htmx;
 window.Alpine = Alpine;
 
-// Configure before htmx initializes the parsed DOM. Preload is opt-in: the
-// account menu contains GET /logout, which must never run speculatively.
+// Configure before htmx initializes the parsed DOM. Preload is opt-in: only
+// the navigation links that ask for it are warmed; the account menu is not.
 Object.assign(htmx.config, { preload: { autoBoost: false } });
 enableViewTransitions();
 

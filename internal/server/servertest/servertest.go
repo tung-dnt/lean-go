@@ -24,8 +24,9 @@
 // The tests of a package share a server, and so a database: a row that a test makes is there for the others, so a test
 // makes what it looks for with a name that nothing else has.
 //
-// An end-to-end test is in the external test package of its domain (package note_test), never in the package
-// itself: the server imports every domain, so a test of a domain that imports the server would be an import cycle.
+// An end-to-end test is in the test package of its domain (internal/note/test, package notetest), never in the
+// domain package itself: the server imports every domain, so a test of a domain that imports the server would be an
+// import cycle.
 package servertest
 
 import (

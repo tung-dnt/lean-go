@@ -35,8 +35,8 @@ for forms and navigation parents. A parent swap/preload policy also needs `:inhe
 
 Load `htmx.org/dist/ext/hx-preload.js` from the same htmx package, after core initialization.
 The app disables `htmx.config.preload.autoBoost` and explicitly opts safe navigation into preload.
-Never enable speculative requests for logout or another mutating GET. The template's account
-menu remains excluded; adding a new mutation must use POST rather than copying GET logout.
+Never enable speculative requests for a mutating GET; no GET mutates. Logging out is a POST: the account
+menu links to the confirmation page (`GET /logout`), whose form posts to log out, and the menu is not preloaded.
 
 **Don't:** use `hx-ext`, bare inherited `hx-boost`/`hx-swap`, the v2 preload package,
 `globalViewTransitions` or XHR-shaped events. Use `htmx.config.transitions` for view transitions.

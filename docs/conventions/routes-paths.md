@@ -4,7 +4,7 @@ Read `internal/server/routes.go` before changing routing; `addRoutes` is the rou
 
 ## Register and link routes
 
-**Do:** add routes in `addRoutes` under the domain comment, use Go's method-aware `ServeMux` patterns, and add the path to `paths` plus `internal/server/paths_test.go` (including its wildcard table when it contains a wildcard). `GET` also serves `HEAD`.
+**Do:** add routes in `addRoutes` under the domain comment, use Go's method-aware `ServeMux` patterns, and add the path to `paths` and to the `routes` table of `internal/server/paths_test.go`; a path with a wildcard also goes, with a value for each wildcard, in the pattern table of `TestPaths__TheWildcardsAreTheValuesOfTheParameters`. `GET` also serves `HEAD`.
 
 ```go
 mux.Handle("GET /notes/{id}", note.HandleShow(d.queries))
@@ -14,7 +14,7 @@ Read a path parameter with `r.PathValue("id")`. Use `GET /{$}` for the home page
 
 Use `paths.Note(id)` or `paths.Home` in links, form actions and redirects—never spell route strings at callsites. Route-path tests ensure links resolve to registered routes.
 
-**Don't:** make a GET mutate data. Use POST for actions; successful posts should redirect with 303 so reload does not resubmit.
+**Don't:** make a GET mutate data, with no exception: logging out is a POST too (`GET /logout` is only the confirmation page whose form posts to `/logout`). Use POST for actions; successful posts should redirect with 303 so reload does not resubmit.
 
 ## Middleware and dependency construction
 

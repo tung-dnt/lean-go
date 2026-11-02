@@ -1,4 +1,4 @@
-package auth_test
+package authtest
 
 import (
 	"net/http"
@@ -99,8 +99,8 @@ func TestLogin__AdminLogsInPassesTheAdminCheckAndLogsOut(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode, "past the admin check")
 
 	// And back out.
-	resp, _ = srv.Visit(t, visitor, http.MethodGet, paths.Logout)
-	assert.Less(t, resp.StatusCode, http.StatusBadRequest)
+	resp, _ = srv.Visit(t, visitor, http.MethodPost, paths.Logout)
+	assert.Equal(t, http.StatusSeeOther, resp.StatusCode)
 	resp, _ = srv.Visit(t, visitor, http.MethodGet, adminPage)
 	assert.Equal(t, http.StatusFound, resp.StatusCode, "logged out: sent to log in again")
 	assert.Equal(t, paths.Login, resp.Header.Get("Location"))
@@ -191,8 +191,8 @@ func TestLogin__AFlashMessageComesOnceOnTheNextPage(t *testing.T) {
 	_, body = srv.Visit(t, visitor, http.MethodGet, page)
 	assert.Zero(t, servertest.Fragment(t, body).Find(`[role="alert"]`).Length(), "it was shown once")
 
-	resp, _ = srv.Visit(t, visitor, http.MethodGet, paths.Logout)
-	require.Less(t, resp.StatusCode, http.StatusBadRequest)
+	resp, _ = srv.Visit(t, visitor, http.MethodPost, paths.Logout)
+	require.Equal(t, http.StatusSeeOther, resp.StatusCode)
 	_, body = srv.Visit(t, visitor, http.MethodGet, page)
 	assert.Contains(t, servertest.Fragment(t, body).Find(`[role="alert"]`).Text(), "You have been logged out successfully.")
 }
@@ -303,8 +303,10 @@ func TestSession__AUserWhoIsGoneIsNotLoggedIn(t *testing.T) {
 
 func TestGuards__LogoutIsForTheLoggedInAndLoginForTheOthers(t *testing.T) {
 	anonymous := servertest.NewVisitor(t)
-	resp, _ := srv.Visit(t, anonymous, http.MethodGet, paths.Logout)
-	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode, "nobody to log out")
+	for _, method := range []string{http.MethodGet, http.MethodPost} {
+		resp, _ := srv.Visit(t, anonymous, method, paths.Logout)
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode, "%s: nobody to log out", method)
+	}
 
 	member, _ := srv.LogInAs(t, false)
 	for _, method := range []string{http.MethodGet, http.MethodPost} {
@@ -313,8 +315,10 @@ func TestGuards__LogoutIsForTheLoggedInAndLoginForTheOthers(t *testing.T) {
 		assert.Contains(t, body, "You are not authorized to view the requested page.", method)
 	}
 
-	resp, _ = srv.Visit(t, member, http.MethodGet, paths.Logout)
-	assert.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+	resp, _ := srv.Visit(t, member, http.MethodGet, paths.Logout)
+	assert.Equal(t, http.StatusOK, resp.StatusCode, "the page to confirm a log out")
+	resp, _ = srv.Visit(t, member, http.MethodPost, paths.Logout)
+	assert.Equal(t, http.StatusSeeOther, resp.StatusCode)
 	assert.Equal(t, paths.Home, resp.Header.Get("Location"))
 }
 
