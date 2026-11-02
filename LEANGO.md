@@ -31,7 +31,7 @@ internal/server/         config, concrete wiring, routes, middleware, shutdown
 internal/server/paths/   typed paths used by links, forms and redirects
 internal/server/servertest/ real server test harness
 internal/ui/             page shell, layouts and shared components
-internal/ui/pages/       every full page, one `<url>_page.go` file each
+internal/ui/pages/       every full page, one `<url>.go` file each
 internal/shared/<concern>/ code two or more domains share, one subpackage per concern
 internal/<domain>/       one flat package per domain
 internal/external/db/    migrations, SQL queries, generated sqlc code
@@ -92,7 +92,7 @@ internal/note/
 ```
 
 Only `note_http.go` and `note_test.go` are supplied in this example domain; its pages are
-`internal/ui/pages/home_page.go` and `notes_id_page.go`, and the login page is `login_page.go`. A
+`internal/ui/pages/home.go` and `notes_id.go`, and the login page is `login.go`. A
 concern's fragments and answers to a post live in its `_http.go` file, beside the handler that returns them.
 The `publication_*` entries show where a real multi-step concern would go; simple note CRUD
 needs neither a workflow nor a background worker.
@@ -147,9 +147,9 @@ add a `_views.go` file, or add a service/interface layer that only forwards call
 
 **Do** draw every full HTML page (a URL a browser navigates to, rendered in the layout) as a render
 function in the one flat package `internal/ui/pages`, in one file named by its URL path: the path's
-segments joined by `_`, a `{x}` wildcard written as lower-case `x`, and the suffix `_page.go`; the path `/`
-is `home_page.go`, `/notes/{id}` is `notes_id_page.go`, `/login` is `login_page.go`. Only `_page.go` files
-(and `test/`) live there, and the architecture test refuses any other file.
+segments joined by `_`, a `{x}` wildcard written as lower-case `x`, then `.go` with no suffix (the folder already says it is a page); the path `/`
+is `home.go`, `/notes/{id}` is `notes_id.go`, `/login` is `login.go`. Only those page files
+(and `test/`) live there, and the architecture test refuses any other file. No file anywhere under `internal/ui` carries a role suffix (`_page`, `_views`, `_view`, `_component`): its folder (pages, components, layouts) says what it is.
 
 A page is a template: it takes its data as plain function parameters (built-ins, `internal/ui/components`
 types, `internal/shared/*` types, `pkg/*`) and imports no domain and nothing of `internal/external`. The
@@ -162,7 +162,7 @@ Markup that a page and a fragment both draw moves to `internal/ui/components`, s
 never import each other. A handler is the only caller of a page.
 
 **Don't** put a handler, a query, a form type or a fragment in `internal/ui/pages`, give a page a domain
-or `db` type to draw, or add a second page package. A file with no `_page.go` name has no home there: stop
+or `db` type to draw, or add a second page package. A file that is not named by a URL has no home there: stop
 and ask the user.
 
 **Read a flow in this order:** entrypoint → `<concern>_workflow_definition.go` → every referenced
@@ -251,7 +251,7 @@ uses an existing database with a separate `test_$RAND` schema. See [testing](doc
 **Do** bundle htmx and Alpine from npm through esbuild; no CDN. Keep browser areas explicit:
 `app.ts`, `register.ts` and `globals.d.ts` may reference all areas; `note/` may reference `shell/`;
 `shell/` imports no other area. Register Alpine components in `register.ts` and use `x-data` in
-the views and pages (`charCount` in `internal/ui/pages/home_page.go`). Add new areas/edges to `webAreas`
+the views and pages (`charCount` in `internal/ui/pages/home.go`). Add new areas/edges to `webAreas`
 in the architecture test and update this map together.
 
 **Don't** bypass the import map with relative-path tricks or load unbundled scripts.

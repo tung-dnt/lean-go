@@ -298,15 +298,19 @@ func TestArchitecture__DomainFileNamesAreJudged(t *testing.T) {
 	}
 }
 
-// pagesPkg is where every full page of the site is drawn: one file per page, internal/ui/pages/<url>_page.go.
+// pagesPkg is where every full page of the site is drawn: one file per page, internal/ui/pages/<url>.go.
 const pagesPkg = "internal/ui/pages"
 
 // pageFile is LEANGO.md's name of a full page: the segments of its URL path joined by "_", a {wildcard} written
-// without its braces and in lower case, then _page.go; the path "/" is home_page.go.
-var pageFile = regexp.MustCompile(`^[a-z][a-z0-9]*(?:_[a-z0-9]+)*_page\.go$`)
+// without its braces and in lower case, then .go; the path "/" is home.go. The folder already says it is a page.
+var pageFile = regexp.MustCompile(`^[a-z][a-z0-9]*(?:_[a-z0-9]+)*\.go$`)
+
+// uiSuffix is a role suffix that no file under internal/ui carries: the folder (pages, components, layouts) names
+// what the file is.
+var uiSuffix = regexp.MustCompile(`_(page|views|view|component)\.go$`)
 
 // TestArchitecture__PagesAreOnlyPageFiles holds internal/ui/pages to LEANGO.md's rule: every non-test Go file
-// directly in it is <url>_page.go, and nothing else lives there. A page is a template, so what it needs besides its
+// directly in it is <url>.go, and nothing else lives there. A page is a template, so what it needs besides its
 // own file (a fragment, an answer to a post, a helper that a fragment shares) is in the domain or in
 // internal/ui/components; no role fits: ask the user. Its tests are in internal/ui/pages/test.
 func TestArchitecture__PagesAreOnlyPageFiles(t *testing.T) {
@@ -319,33 +323,56 @@ func TestArchitecture__PagesAreOnlyPageFiles(t *testing.T) {
 			continue
 		}
 		checked++
-		if !pageFile.MatchString(f.Name()) {
-			t.Errorf("internal/ui/pages/%s: a file is <url>_page.go, the URL path's segments joined by _, {x} as x, / as home (LEANGO.md)", f.Name())
+		if !isPageFile(f.Name()) {
+			t.Errorf("internal/ui/pages/%s: a file is <url>.go, the URL path's segments joined by _, {x} as x, / as home, no suffix (LEANGO.md)", f.Name())
 		}
 	}
 	require.NotZero(t, checked, "the walk found page files")
+}
+
+// isPageFile says whether name is a page file name: <url>.go with no role suffix.
+func isPageFile(name string) bool {
+	return pageFile.MatchString(name) && !uiSuffix.MatchString(name)
+}
+
+// TestArchitecture__UIFilesCarryNoSuffix holds every non-test Go file under internal/ui to LEANGO.md's rule: its folder
+// says what it is, so no file is named *_page.go, *_views.go, *_view.go or *_component.go.
+func TestArchitecture__UIFilesCarryNoSuffix(t *testing.T) {
+	checked := 0
+	err := filepath.WalkDir("ui", func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(p, ".go") || strings.HasSuffix(p, "_test.go") {
+			return nil
+		}
+		checked++
+		if uiSuffix.MatchString(d.Name()) {
+			t.Errorf("internal/%s: files under internal/ui carry no role suffix; the folder names what they are (LEANGO.md)", filepath.ToSlash(p))
+		}
+		return nil
+	})
+	require.NoError(t, err, "walk internal/ui")
+	require.NotZero(t, checked, "the walk found ui files")
 }
 
 // TestArchitecture__PageFileNamesAreJudged holds the rule of page file names to what it says, on names that need not
 // exist, so that the test above cannot pass because the rule judges nothing.
 func TestArchitecture__PageFileNamesAreJudged(t *testing.T) {
 	for name, ok := range map[string]bool{
-		"home_page.go":     true,
-		"login_page.go":    true,
-		"notes_id_page.go": true,
-		"admin_content_deletions_operationid_page.go": true,
-		"x.go":              false,
-		"page.go":           false,
-		"_page.go":          false,
-		"notes_id_views.go": false,
-		"login_http.go":     false,
-		"Login_page.go":     false,
-		"admin_content_deletions_operationID_page.go": false,
-		"notes_{id}_page.go":                          false,
-		"login_page.txt":                              false,
-		"helpers.go":                                  false,
+		"home.go":                                true,
+		"login.go":                               true,
+		"notes_id.go":                            true,
+		"admin_content_deletions_operationid.go": true,
+		"home_page.go":                           false,
+		"notes_id_views.go":                      false,
+		"_home.go":                               false,
+		"Login.go":                               false,
+		"admin_content_deletions_operationID.go": false,
+		"notes_{id}.go":                          false,
+		"login.txt":                              false,
 	} {
-		assert.Equal(t, ok, pageFile.MatchString(name), "%s is judged as a page file: %t", name, ok)
+		assert.Equal(t, ok, isPageFile(name), "%s is judged as a page file: %t", name, ok)
 	}
 }
 

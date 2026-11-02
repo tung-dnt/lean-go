@@ -3,7 +3,7 @@
 // and delete it when the first real domain exists.
 //
 // A domain is one flat package: note_http.go holds handlers. The full pages they answer with are templates in
-// internal/ui/pages (home_page.go, notes_id_page.go); the handler loads, maps and calls them. Tests use the
+// internal/ui/pages (home.go, notes_id.go); the handler loads, maps and calls them. Tests use the
 // external package (note_test) through internal/server/servertest. HandleX(deps...) takes only what it uses;
 // internal/server/routes.go lists every route. Multi-step workflows get concern-prefixed definition and step files.
 //
