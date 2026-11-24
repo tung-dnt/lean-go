@@ -4,7 +4,7 @@ package msg
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 
 	"github.com/tung-dnt/lean-go/pkg/log"
 	"github.com/tung-dnt/lean-go/pkg/session"
