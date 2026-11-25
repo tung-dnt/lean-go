@@ -14,8 +14,9 @@ The quality bar is [CONSTRAINTS.md](CONSTRAINTS.md); implementation recipes are 
    Update the `module` constant in `internal/architecture_test.go` too.
 2. Rename `leango` in local database settings, Docker Compose and `package.json` to your app name.
 3. Run `just install && just db-up && just migrate-up && just run`; open <http://localhost:8000>.
-4. Copy the shape of `internal/note` for the first real domain, then remove the example's package,
-   routes, paths, migration, queries, architecture-test row and `web/js/note` area together.
+4. Copy the shape of `internal/note` (its business root, `domain/` and `adapters/`) for the first real domain,
+   then remove the example's packages, routes, paths, migration, queries, architecture-test row and
+   `web/js/note` area together.
 5. Set the owner/date in `CONSTRAINTS.md` and fill in the README's project-specific sections.
 6. Set `GO_APP_ENCRYPTIONKEY` and database credentials in every live environment.
 
@@ -31,7 +32,9 @@ internal/server/         config, concrete wiring, routes, middleware, shutdown
 internal/server/paths/   typed paths used by links, forms and redirects
 internal/server/servertest/ real server test harness
 internal/ui/             page shell, layouts and shared components
-internal/<domain>/       one flat package per domain
+internal/<domain>/       business root of a domain: its business, calling sqlc directly
+internal/<domain>/domain/    its pure types, rules and sentinel errors
+internal/<domain>/adapters/  its presentation: handlers, forms, views, worker callbacks
 internal/external/db/    migrations, SQL queries, generated sqlc code
 pkg/                     domain-independent mechanisms, including workflow and worker
 web/js/                  browser areas with explicit import edges
@@ -41,14 +44,21 @@ public/                  embedded assets
 ```mermaid
 flowchart TD
   cmd["cmd/*"] --> server["internal/server"]
-  server --> domain["internal/<domain>"]
+  server --> adapters["internal/<domain>/adapters"]
+  server --> root["internal/<domain>"]
   server --> ui["internal/ui"]
   server --> external["internal/external"]
   server --> pkg["pkg"]
-  domain --> ui
-  domain --> external
-  domain --> paths["internal/server/paths"]
-  domain --> pkg
+  adapters --> root
+  adapters --> rules["internal/<domain>/domain"]
+  adapters --> ui
+  adapters --> external
+  adapters --> paths["internal/server/paths"]
+  adapters --> pkg
+  root --> rules
+  root --> external
+  root --> pkg
+  rules --> pkg
   ui --> paths
   ui --> pkg
   external --> pkg
@@ -56,60 +66,70 @@ flowchart TD
 
 **Do** inspect `pkg/` before implementing a mechanism. Read its contract and callers and reuse
 what fits. Keep third-party SDK adapters under `internal/external`; generated sqlc files are never
-hand-edited. Add any cross-domain import explicitly to `domains` in `internal/architecture_test.go`.
-Domains link to each other's pages through typed paths instead of importing each other's handlers.
+hand-edited. Add any cross-domain import explicitly to `domains` in `internal/architecture_test.go`; the layer
+of the importing package then judges it (see below). Domains link to each other's pages through typed paths
+instead of importing each other's handlers.
 
 **Don't** import a domain, server or UI from `pkg` or `internal/external`. UI imports no domain and
 only `internal/server/paths` from server; paths imports nothing from the module. `cmd/*` imports
-server, pkg and external plus explicitly listed `cmdAllowed` edges (`cmd/admin` uses auth).
-The architecture test enforces these edges and rejects the router/validation libraries replaced
-by the standard library.
+server, pkg and external plus explicitly listed `cmdAllowed` edges (`cmd/admin` uses `auth/domain`).
+The architecture test enforces these edges and the layers of a domain, and rejects the router/validation
+libraries replaced by the standard library.
 
-## Flat domains, named by concern and role
+## Domain layout and reading order
 
-**Do** keep related functions in one package and name files so a reader can locate a concern without
-opening every file. One example domain, including an optional workflow's file layout:
+A domain is three packages. Each has one job and imports only what that job needs:
+
+| Package | Holds | Imports |
+|---|---|---|
+| `internal/<domain>` (business root) | The business of each operation in `<concern>.go`: it orchestrates, calls the generated sqlc queries (`*db.Queries`) or the pool directly, runs workflows and answers with rows, domain types and sentinel errors. Also `<concern>_workflow_definition.go`, `<concern>_workflow_<step>.go`, `<concern>_effects.go` (durable external effects) and `<concern>_test_support.go` (what the external tests of the domain need) | No `net/http`, gomponents, `internal/ui`, `internal/server/paths`, `pkg/session`, `pkg/msg`, `pkg/redirect`, `pkg/htmx`, `pkg/httperr` or `pkg/middleware`; never `adapters/` |
+| `internal/<domain>/domain` | Pure types, constants, limits, validation rules (with the sentence of each problem) and sentinel errors | Additionally no `encoding/json`, no `internal/external`, no business root |
+| `internal/<domain>/adapters` | Presentation: `<concern>_http.go` has the `HandleX(deps...) http.Handler` makers, which read the request, the session and the form, call the business root with plain parameters and give each domain error the status, message and flash it has; `<concern>_views.go` the gomponents; `<concern>_form.go` the request fields (`form:` tags and `Valid`, which applies the rules of `domain/`); `<concern>_worker.go` the `pkg/worker` callbacks | Anything the domain may reach |
+
+There is no query or store layer: a business function calls the sqlc query it needs, and a helper that only
+forwards one query is inlined. No file of a domain ends in `_api.go`, `_query.go`, `_store.go` or `_policy.go`,
+and no type name ends in `Store`, `Query` or `Queries`: name a type for the business concept it holds.
+`internal/architecture_test.go` enforces the layers, the file names, the type names and the edges between
+domains. A domain that draws nothing is only a business root.
+
+**Do** read the operation and follow the concern: adapter → business root → `<concern>_workflow_definition.go`
+→ every referenced step, guard and error callback → worker. The definition must expose the whole graph; files
+are discoverable roles, not permission to read one file and guess the rest. The adapter passes what the request
+holds (the user, the form fields, the page) to the business root as parameters, never through `context.Context`
+values. A second workflow uses another concern prefix in the same package. Not every role needs a file: keep
+small cohesive code together and split along a real role, not a line-count target.
+
+**Don't** hide all types and helpers in `types.go`/`utils.go`, create a file for every small function,
+manufacture every role for a small concern, add a service/interface layer that only forwards calls, or create
+`workflows/<name>/` packages or any package beyond the three layers merely to group files. Keep local helpers
+and types with their owner.
+
+One example domain, including an optional workflow's file layout:
 
 ```text
 internal/note/
-  note_http.go
-  note_views.go
+  adapters/
+    note_http.go
+    note_form.go
+    note_views.go
+    publication_http.go
+    publication_views.go
+    publication_worker.go
+  domain/
+    note.go
+    publication.go
+  note.go
   note_test.go
-  publication_api.go
-  publication_http.go
-  publication_views.go
-  publication_store.go
-  publication_worker.go
+  publication.go
   publication_workflow_definition.go
   publication_workflow_prepare.go
   publication_workflow_publish.go
   publication_workflow_error.go
 ```
 
-Only `note_http.go`, `note_views.go` and `note_test.go` are supplied in this example domain.
-The `publication_*` entries show where a real multi-step concern would go; simple note CRUD
+Only `note.go`, `domain/note.go`, `adapters/note_{http,form,views}.go` and `note_test.go` are supplied in this
+example domain. The `publication_*` entries show where a real multi-step concern would go; simple note CRUD
 needs neither a workflow nor a background worker.
-
-| File pattern | Owns |
-|---|---|
-| `<concern>_api.go` | Domain entrypoints and concrete construction |
-| `<concern>_http.go` | Handler makers, HTTP input and response mapping |
-| `<concern>_views.go` | That concern's gomponents and rendering |
-| `<concern>_query.go`, `<concern>_policy.go` | Reads or pure decisions when they merit a separate file |
-| `<concern>_store.go` | SQL/transaction adapter and persistence invariants |
-| `<concern>_worker.go` | Domain callbacks, durable scanning and scheduling policy |
-| `<concern>_workflow_definition.go` | Complete graph, states, guards, retry/error policy and callback wiring |
-| `<concern>_workflow_<step>.go` | One step's replay-safe Do and transactional Commit, kept together |
-
-A second workflow uses another concern prefix in the same flat domain. Not every role needs a file:
-keep small cohesive code together and split along a real role, not a line-count target.
-
-**Don't** introduce `workflows/<name>/`, `handlers/` or `services/` subpackages to organize one domain,
-put every view into `views.go`, or add a service/interface layer that only forwards calls.
-
-**Read a flow in this order:** entrypoint → `<concern>_workflow_definition.go` → every referenced
-step/guard/error callback → store → worker/HTTP caller. The definition must expose the whole graph;
-flat files are discoverable roles, not permission to read one file and guess the rest.
 
 ## Choose workflow and worker separately
 
@@ -140,13 +160,15 @@ func definePublication[E, Tx any](prepare func(context.Context, E, any) error,
 
 This generic definition fragment also needs `context` and `time` imports. `prepare` must be
 replay-safe; `publish` must use the supplied transaction. Construct the orchestrator with a real
-`Entity` store that enforces the atomic persistence contract; the runner does not supply a database.
+`Entity` implementation that enforces the atomic persistence contract; the runner does not supply a database.
 
 **Don't** hand-roll a second state switch/retry orchestrator for these operations. Explain the
 concrete limitation before bypassing the runner. Pure helper chains, read-only queries and one
 atomic mutation remain ordinary code.
 
-**Do** use [`pkg/worker`](pkg/worker/worker.go) to schedule process-owned callbacks:
+**Do** use [`pkg/worker`](pkg/worker/worker.go) to schedule process-owned callbacks. They are supplied from
+`adapters/<concern>_worker.go` and call the business root, which keeps the selection of work, the retry policy
+of each job and the durable effects:
 
 ```go
 w, err := worker.New(worker.Config{
@@ -169,8 +191,9 @@ workflow without a worker, and a worker can perform maintenance without a workfl
 
 ## Add a domain
 
-**Do** create `internal/<domain>` with concern/role files and external-package HTTP tests.
-Make handlers with `HandleX(deps...) http.Handler`, taking only the dependencies they use.
+**Do** create the three packages `internal/<domain>`, `internal/<domain>/domain` and `internal/<domain>/adapters`
+(the ones the domain needs) with concern/role files, and external-package HTTP tests.
+Make handlers in the adapters with `HandleX(deps...) http.Handler`, taking only the dependencies they use.
 
 1. Add migrations/queries and run `just sqlc` when persistence changes.
 2. Register every route in `internal/server/routes.go` and add typed paths under `internal/server/paths`.
@@ -193,7 +216,7 @@ uses an existing database with a separate `test_$RAND` schema. See [testing](doc
 **Do** bundle htmx and Alpine from npm through esbuild; no CDN. Keep browser areas explicit:
 `app.ts`, `register.ts` and `globals.d.ts` may reference all areas; `note/` may reference `shell/`;
 `shell/` imports no other area. Register Alpine components in `register.ts` and use `x-data` in
-concern views (`charCount` in `internal/note/note_views.go`). Add new areas/edges to `webAreas`
+concern views (`charCount` in `internal/note/adapters/note_views.go`). Add new areas/edges to `webAreas`
 in the architecture test and update this map together.
 
 **Don't** bypass the import map with relative-path tricks or load unbundled scripts.

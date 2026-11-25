@@ -1,7 +1,6 @@
-package auth
+package adapters
 
 import (
-	"context"
 	"net/http"
 
 	g "maragu.dev/gomponents"
@@ -11,32 +10,7 @@ import (
 	"github.com/tung-dnt/lean-go/internal/ui"
 	"github.com/tung-dnt/lean-go/internal/ui/components"
 	"github.com/tung-dnt/lean-go/internal/ui/layouts"
-	"github.com/tung-dnt/lean-go/pkg/form"
 )
-
-// loginForm is the form of the login page, which is also what a post of it is read into.
-type loginForm struct {
-	Email    string `form:"email"`
-	Password string `form:"password"`
-	form.Submission
-}
-
-// Valid implements form.Validator: both fields have to be filled in, and the first has to be an address.
-func (f *loginForm) Valid(context.Context) map[string]string {
-	problems := map[string]string{}
-
-	switch {
-	case f.Email == "":
-		problems["Email"] = form.MsgRequired
-	case !form.IsEmail(f.Email):
-		problems["Email"] = form.MsgEmail
-	}
-	if f.Password == "" {
-		problems["Password"] = form.MsgRequired
-	}
-
-	return problems
-}
 
 // renderLogin draws the login page for the form, which is empty for the first visit and has what was entered and
 // what is wrong with it after a post. The password is never sent back.

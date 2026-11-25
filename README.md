@@ -38,8 +38,8 @@ JavaScript package tools run with Bun as the runtime (`bunx --bun` / `bun x --bu
 
 ## Domains
 
-_(One row per package under `internal/`, and what it owns. Which domain may import which is held by
-`internal/architecture_test.go`, not here. Delete `note` when your first domain lands.)_
+_(One row per domain under `internal/`, whose business root, `domain/` and `adapters/` count as one, and what it owns.
+Which domain may import which is held by `internal/architecture_test.go`, not here. Delete `note` when your first domain lands.)_
 
 | Domain | Owns |
 |---|---|

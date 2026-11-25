@@ -1,6 +1,6 @@
 # Durable workflows
 
-Use `pkg/workflow` (package `workflow`) when a domain operation has named stages and needs durable progress across retries or process restarts, waits for an external decision, or coordinates multiple effects. The package is a generic runner; it does not own domain state or persistence. Keep definitions, callbacks, and the concrete store in the owning flat `internal/<domain>` package.
+Use `pkg/workflow` (package `workflow`) when a domain operation has named stages and needs durable progress across retries or process restarts, waits for an external decision, or coordinates multiple effects. The package is a generic runner; it does not own domain state or persistence. Keep definitions, callbacks, and the persistence that implements `Entity` in the business root of the owning domain, `internal/<domain>`; its `adapters/` call it and never write a status themselves.
 
 ## Choose the right tool
 
@@ -12,7 +12,7 @@ Before implementing a qualifying workflow, identify its owner and stable key; in
 
 ## Define the graph in the domain
 
-Keep the definition and callbacks beside the domain that owns the entity, for example `internal/<domain>/<concern>_workflow_definition.go` and `*_workflow_<step>.go`. The graph is declarative: one initial edge (`From == ""`), named states, optional guards, Do and Commit callbacks, retry policy, and an error-decision function. It is not an event registry or handler map.
+Keep the definition and callbacks in the business root of the domain that owns the entity, for example `internal/<domain>/<concern>_workflow_definition.go` and `*_workflow_<step>.go`. The graph is declarative: one initial edge (`From == ""`), named states, optional guards, Do and Commit callbacks, retry policy, and an error-decision function. It is not an event registry or handler map.
 
 Illustrative recipe only—not an implemented domain workflow:
 
@@ -38,7 +38,7 @@ This recipe uses `github.com/jackc/pgx/v5`, matching the template's database sta
 
 ## Persistence is the correctness boundary
 
-Implement the workflow `Entity` contract with real durable storage before constructing the orchestrator. `Load` reads persisted state; `Insert` idempotently inserts in the initial state; `Claim` fences/counts an attempt; and `Transition` performs a compare-and-set against the expected state (and attempt fence where used). `Insert` and `Transition` must run the supplied Commit callback and the state write in the same transaction. A callback error rolls back all callback writes and the status update. Return a conflict when a peer changed the entity first. The runner cannot supply atomicity that the store does not implement.
+Implement the workflow `Entity` contract with real durable storage before constructing the orchestrator. Name the implementing type for what it holds (`Publications`), not `…Store`: the architecture test rejects the suffix. `Load` reads persisted state; `Insert` idempotently inserts in the initial state; `Claim` fences/counts an attempt; and `Transition` performs a compare-and-set against the expected state (and attempt fence where used). `Insert` and `Transition` must run the supplied Commit callback and the state write in the same transaction. A callback error rolls back all callback writes and the status update. Return a conflict when a peer changed the entity first. The runner cannot supply atomicity that the store does not implement.
 
 A transition's `Do` runs outside the transaction and can be repeated after a failed commit, conflict, or lost acknowledgement. **Do:** make it replay-safe: use stable external idempotency keys, repeatable reads, and deterministic preparation. Put database writes in `Commit(ctx, tx, entity)` and perform them only through that transaction. Queue external side effects durably in the same commit when they cannot be included in the database transaction; a separate worker can deliver them.
 

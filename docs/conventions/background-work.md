@@ -6,11 +6,11 @@ Use `pkg/worker` (package `worker`) for process-local scheduling and lifecycle a
 
 **Do:** persist work before waking the process worker. Make each callback safe to replay, scan durable work at startup, and return the next due time as an absolute deadline. The initial Work pass recovers work left by a stopped process. Call `Wake` only after the transaction that made new work durable commits.
 
-**Don't:** treat Wake as a queue or job count, rely on a signal for recovery, or put business state in `worker.State`. Ready/Running/Waiting/Stopped describe only this worker instance. Durable status, attempts, per-record retry policy and idempotency belong to the owning domain and its store.
+**Don't:** treat Wake as a queue or job count, rely on a signal for recovery, or put business state in `worker.State`. Ready/Running/Waiting/Stopped describe only this worker instance. Durable status, attempts, per-record retry policy and idempotency belong to the owning domain's business root.
 
 `Work` runs immediately when `Run` starts, on Wake, and at the deadline it returned on its previous pass. Every Work return replaces that deadline; a zero `time.Time` disarms it until another wake. A past deadline makes the next pass due immediately. Optional `Tick` runs at its positive configured interval and does not change the Work deadline. Work and Tick are serial and never overlap; a slow callback can delay/coalesce ticks. Callback errors and retry decisions are domain policy, not worker API results.
 
-Give the worker the domain's actual durable scan, not a placeholder callback. Construct one worker per process lifecycle, not one per request. When work is a staged/recoverable lifecycle, persist that domain state with `pkg/workflow`; keep the definition, callbacks, store, and retry policy in the owning flat domain package.
+Give the worker the domain's actual durable scan, not a placeholder callback. Construct one worker per process lifecycle, not one per request. When work is a staged/recoverable lifecycle, persist that domain state with `pkg/workflow`; keep the definition, its step callbacks and the retry policy in the business root of the owning domain. The `Work` and `Tick` callbacks are in the domain's `adapters/<concern>_worker.go` and call that business root, which selects the work and holds the durable effects.
 
 ## Own shutdown in the process composition root
 

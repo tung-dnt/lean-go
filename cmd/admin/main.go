@@ -12,7 +12,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/tung-dnt/lean-go/internal/auth"
+	"github.com/tung-dnt/lean-go/internal/auth/domain"
 	"github.com/tung-dnt/lean-go/internal/external/db"
 	"github.com/tung-dnt/lean-go/pkg/config"
 )
@@ -50,11 +50,11 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 	defer pool.Close()
 
 	// Generate a password, and hash it before storing it.
-	password, err := auth.RandomToken(10)
+	password, err := domain.RandomToken(10)
 	if err != nil {
 		return fmt.Errorf("failed to generate a random password: %w", err)
 	}
-	hashed, err := auth.HashPassword(password)
+	hashed, err := domain.HashPassword(password)
 	if err != nil {
 		return fmt.Errorf("failed to hash the password: %w", err)
 	}

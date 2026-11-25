@@ -10,7 +10,7 @@ always loaded, so it stays short. Read the rest only when the change needs it (t
 - Views are gomponents in Go; the browser side is htmx (hx-boost) and Alpine, bundled from npm by esbuild, styled with Tailwind + daisyUI.
 - Errors are handled where they happen with an explicit `if err != nil` and wrapped with `%w`. No ignored errors (`_ = f()`), no `panic` for control flow, no empty error branches.
 - No interface that exists only so a test can fake it. Tests run the real server against a real PostgreSQL.
-- Keep each domain flat and name files by concern and role: `<concern>_<role>.go`, `<concern>_views.go`, `<concern>_workflow_definition.go` and `<concern>_workflow_<step>.go`. Read the owning definition and all its callbacks before changing a workflow; do not hide steps in workflow subpackages.
+- A domain is three packages: the business root `internal/<domain>` (`<concern>.go` calling sqlc directly, and its workflows), `domain/` (pure rules) and `adapters/` (HTTP, views, forms, workers); no `*_api.go`, `*_query.go`, `*_store.go` or `*_policy.go`. Layers, file roles and edges: [LEANGO.md](LEANGO.md#domain-layout-and-reading-order). Read the owning workflow definition and all its callbacks before changing a workflow; do not hide steps in workflow subpackages.
 - Prefer `pkg/workflow` for multi-step domain operations with persistent stages, approval/wait states, retries, restart recovery or coordinated effects. Before coding, read [Workflows](docs/conventions/workflow.md), identify or extend the owning definition, and specify edges, atomic Commit writes, idempotency and recovery. Do not hand-roll status switches or retry orchestration alongside the runner. Explain a concrete limitation before bypassing it. Pure helper chains, read-only queries and one atomic mutation do not need a workflow.
 - Use `pkg/worker` for process-owned background execution, passing callbacks from the owning domain. Keep lifecycle, wake signals and timers in the runtime; durable job state, queries and retry policy stay in the domain. Read [Background work](docs/conventions/background-work.md); do not copy a scheduling loop.
 - Test first, end to end. A task is done when `just check` (`sqlc-verify sqlc-vet lint vuln types secrets deps dupes test build`) is green.
@@ -21,14 +21,14 @@ always loaded, so it stays short. Read the rest only when the change needs it (t
 - No unimplemented stubs: `panic("TODO")`, `// TODO: implement`, functions that return zero values where logic belongs, empty error handling (`_ = err`, `if err != nil {}`).
 - No new suppressions: `//nolint`, `// @ts-ignore`, `// @ts-expect-error`, `eslint-disable`, `gitleaks:allow`.
 - No secrets in source. `config/config.yaml` holds only local values; a live environment overrides every secret with a `GO_*` variable.
-- Go: `go vet ./...` clean, `golangci-lint run` (`.golangci.yml`) reports nothing, and `internal/architecture_test.go` passes (module and web edges).
+- Go: `go vet ./...` clean, `golangci-lint run` (`.golangci.yml`) reports nothing, and `internal/architecture_test.go` passes (module, domain-layer and web edges).
 - Neither this Floor nor [CONSTRAINTS.md](CONSTRAINTS.md) is weakened in the same PR as the change that was failing.
 
 ## Read before you
 
 | Change | Read |
 |---|---|
-| add a domain, or an import between packages or `web/js` areas | [LEANGO.md](LEANGO.md) (Architecture, Adding a domain) |
+| add a domain, or an import between packages or `web/js` areas | [LEANGO.md](LEANGO.md) (Architecture, Domain layout, Add a domain) |
 | write or change a handler, its errors or its rendering | [handlers-errors](docs/conventions/handlers-errors.md) |
 | add a route, a path, a guard or per-route middleware | [routes-paths](docs/conventions/routes-paths.md) |
 | read a form, a file upload or a large body | [forms](docs/conventions/forms.md) |

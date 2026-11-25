@@ -1,6 +1,7 @@
 package internal_test
 
 import (
+	"go/ast"
 	"go/parser"
 	"go/token"
 	"io/fs"
@@ -21,18 +22,19 @@ import (
 // module is the import path of this repository.
 const module = "github.com/tung-dnt/lean-go"
 
-// domains are the business domains: each is ONE flat package, internal/<domain>, and the other domains it may import.
-// A domain that builds on another (a search over a catalog, say) lists it here. This is the table of LEANGO.md's
-// "Architecture": change both together.
+// domains are the business domains: each is THREE packages, its business root internal/<domain> and the flat
+// internal/<domain>/domain and internal/<domain>/adapters, and the other domains it may import. A domain that builds
+// on another (a search over a catalog, say) lists it here. This is the table of LEANGO.md's "Architecture": change
+// both together.
 var domains = map[string][]string{
 	"auth": nil,
 	"note": nil,
 }
 
-// cmdAllowed are the edges from a command to a domain, the only ones: admin hashes the password it prints with auth's
-// own function.
+// cmdAllowed are the edges from a command to a package of a domain, the only ones: admin hashes the password it
+// prints with the rules of auth, and reaches neither its business root nor its adapters.
 var cmdAllowed = map[string][]string{
-	"cmd/admin": {"internal/auth"},
+	"cmd/admin": {"internal/auth/domain"},
 }
 
 // cmdRoots are the packages a command may import: the server, the shared code and the data layer.
@@ -49,11 +51,45 @@ var bannedLibraries = []string{
 // sdkPrefixes are the third-party SDKs that only internal/external may import: the rest of the code sees the adapter.
 var sdkPrefixes = []string{"github.com/aws/aws-sdk-go-v2"}
 
+// The three packages of a domain: its business root, internal/<domain>, and the flat packages below it.
+const (
+	rootLayer     = "root"
+	domainLayer   = "domain"
+	adaptersLayer = "adapters"
+)
+
+// presentationImports are what only the adapters of a domain use, by import path (of this module relative to its
+// root, of any other as it is written): the web (net/http, the typed paths), the pages (gomponents, internal/ui)
+// and the helpers that speak to the visitor (the session, a flash message, a redirect, an HTTP error, htmx, the
+// guards). The business root and the rules take plain parameters and answer with values and errors, so they import
+// none of them. pkg/form is not one: its Decode and Submission serve the adapters, and its sentences and IsEmail
+// are what the rules of a domain check with.
+var presentationImports = []string{
+	"net/http",
+	"maragu.dev/gomponents",
+	"internal/server/paths",
+	"internal/ui",
+	"pkg/htmx",
+	"pkg/httperr",
+	"pkg/middleware",
+	"pkg/msg",
+	"pkg/redirect",
+	"pkg/session",
+}
+
+// retiredFileRoles are the file names that no package of a domain has any more. The business is <concern>.go and
+// calls the generated sqlc queries directly, the rules are in domain/ and the handlers in adapters/.
+var retiredFileRoles = []string{"*_api.go", "*_query.go", "*_store.go", "*_policy.go"}
+
 // TestArchitecture__EveryImportFollowsTheEdges reads the imports of every package of the repository, its tests
 // excepted, and holds them to the rules of the layout:
 //
-//   - every internal/<domain> is one flat package: it has no sub-packages (testdata excepted).
-//   - a domain imports no other domain, except along the edges listed in domains.
+//   - every internal/<domain> is its business root plus the flat packages internal/<domain>/domain and
+//     internal/<domain>/adapters: it has no other sub-package (testdata excepted).
+//   - the three packages keep to their layers (layerForbidden): only the adapters import the web, the pages and the
+//     session; the rules import neither JSON nor the database; no business root or rules import adapters, and the
+//     rules import only rules.
+//   - a domain imports no other domain, except along the edges listed in domains, whichever its layer.
 //   - internal/server/paths is the one package under internal/server that a domain or internal/ui may import, and it
 //     imports nothing of this module.
 //   - pkg and internal/external import no domain, no internal/server and no internal/ui.
@@ -82,8 +118,130 @@ func TestArchitecture__EveryImportFollowsTheEdges(t *testing.T) {
 	}
 }
 
+// TestArchitecture__ADomainSplitsBusinessFromPresentation holds the files of every domain to the split:
+//
+//   - no package of a domain has a file named for a role the split retired (retiredFileRoles).
+//   - no type of a domain is named Store, Query or Queries, or for one: it is named for the business concept.
+func TestArchitecture__ADomainSplitsBusinessFromPresentation(t *testing.T) {
+	for _, name := range slices.Sorted(maps.Keys(domains)) {
+		for _, layer := range []string{".", domainLayer, adaptersLayer} {
+			dir := filepath.Join(name, layer)
+			for _, role := range retiredFileRoles {
+				found, err := filepath.Glob(filepath.Join(dir, role))
+				require.NoError(t, err)
+				assert.Empty(t, found, "domain %s: the business is <concern>.go calling sqlc directly, the rules are in domain/, the handlers in adapters/", name)
+			}
+
+			files, err := filepath.Glob(filepath.Join(dir, "*.go"))
+			require.NoError(t, err)
+			for _, file := range files {
+				if strings.HasSuffix(file, "_test.go") {
+					continue
+				}
+				for _, typeName := range typeNames(t, file) {
+					for _, suffix := range []string{"Store", "Query", "Queries"} {
+						assert.False(t, strings.HasSuffix(typeName, suffix), "%s: type %s names a store or query layer; name the business concept", file, typeName)
+					}
+				}
+			}
+		}
+	}
+}
+
+// TestArchitecture__DomainEdgesAreJudged holds the rules of the layers to what they say, on packages that need not
+// exist, so that the walk of the imports cannot pass because a rule judges nothing.
+func TestArchitecture__DomainEdgesAreJudged(t *testing.T) {
+	t.Run("what the adapters may import", func(t *testing.T) {
+		for _, dep := range []string{
+			"net/http", "maragu.dev/gomponents/html", "encoding/json/v2",
+			module + "/internal/note", module + "/internal/note/domain", module + "/internal/external/db",
+			module + "/internal/server/paths", module + "/internal/ui/layouts",
+			module + "/pkg/htmx", module + "/pkg/httperr", module + "/pkg/middleware", module + "/pkg/msg",
+			module + "/pkg/redirect", module + "/pkg/session",
+		} {
+			assert.Empty(t, layerForbidden("internal/note/adapters", dep), "adapters may import %s", dep)
+		}
+	})
+
+	t.Run("what the business root may import", func(t *testing.T) {
+		for _, dep := range []string{
+			"encoding/json/v2", module + "/internal/note/domain", module + "/internal/external/db",
+			module + "/pkg/pager", module + "/pkg/workflow",
+		} {
+			assert.Empty(t, layerForbidden("internal/note", dep), "the root may import %s", dep)
+		}
+		for _, dep := range []string{
+			"net/http", "maragu.dev/gomponents/html", module + "/internal/note/adapters",
+			module + "/internal/server/paths", module + "/internal/ui/layouts",
+			module + "/pkg/htmx", module + "/pkg/httperr", module + "/pkg/middleware", module + "/pkg/msg",
+			module + "/pkg/redirect", module + "/pkg/session",
+		} {
+			assert.NotEmpty(t, layerForbidden("internal/note", dep), "the root may not import %s", dep)
+		}
+	})
+
+	t.Run("what the domain rules may import", func(t *testing.T) {
+		for _, dep := range []string{"strings", module + "/pkg/form", module + "/internal/note/domain"} {
+			assert.Empty(t, layerForbidden("internal/note/domain", dep), "the rules may import %s", dep)
+		}
+		for _, dep := range []string{
+			"net/http", "maragu.dev/gomponents", "encoding/json/v2", module + "/internal/external/db",
+			module + "/internal/note", module + "/internal/note/adapters", module + "/pkg/session",
+		} {
+			assert.NotEmpty(t, layerForbidden("internal/note/domain", dep), "the rules may not import %s", dep)
+		}
+	})
+
+	t.Run("what a layer may import of another domain", func(t *testing.T) {
+		assert.Empty(t, layerForbidden("internal/note/domain", module+"/internal/auth/domain"), "rules import rules of another domain")
+		assert.NotEmpty(t, layerForbidden("internal/note/domain", module+"/internal/auth"), "and nothing else of it")
+		assert.Empty(t, layerForbidden("internal/note", module+"/internal/auth"), "the root imports the root of another domain")
+		assert.Empty(t, layerForbidden("internal/note", module+"/internal/auth/domain"), "and its rules")
+		assert.NotEmpty(t, layerForbidden("internal/note", module+"/internal/auth/adapters"), "but not its adapters")
+		assert.Empty(t, layerForbidden("internal/note/adapters", module+"/internal/auth/adapters"), "adapters import anything")
+		assert.NotEmpty(t, forbidden("internal/note/adapters", module+"/internal/auth/adapters"), "that the edges of domains allow: note lists none")
+	})
+
+	t.Run("where a package may be", func(t *testing.T) {
+		for _, pkg := range []string{"internal/note", "internal/note/domain", "internal/note/adapters", "internal/server/paths"} {
+			assert.Empty(t, misplaced(pkg), pkg)
+		}
+		for _, pkg := range []string{"internal/note/services", "internal/note/adapters/nested", "internal/note/domain/nested", "internal/other"} {
+			assert.NotEmpty(t, misplaced(pkg), pkg)
+		}
+	})
+
+	t.Run("what a command may import of a domain", func(t *testing.T) {
+		assert.Empty(t, cmdForbidden("cmd/admin", "internal/auth/domain"), "admin hashes with the rules of auth")
+		assert.NotEmpty(t, cmdForbidden("cmd/admin", "internal/auth"), "and does not reach its business root")
+		assert.NotEmpty(t, cmdForbidden("cmd/admin", "internal/auth/adapters"), "or its adapters")
+		assert.NotEmpty(t, cmdForbidden("cmd/web", "internal/auth/domain"), "another command has no such edge")
+	})
+}
+
+// typeNames are the names of the types that a Go file declares at its top level.
+func typeNames(t *testing.T, file string) []string {
+	t.Helper()
+
+	parsed, err := parser.ParseFile(token.NewFileSet(), file, nil, parser.SkipObjectResolution)
+	require.NoError(t, err)
+
+	var names []string
+	for _, decl := range parsed.Decls {
+		gen, ok := decl.(*ast.GenDecl)
+		if !ok || gen.Tok != token.TYPE {
+			continue
+		}
+		for _, spec := range gen.Specs {
+			names = append(names, spec.(*ast.TypeSpec).Name.Name)
+		}
+	}
+
+	return names
+}
+
 // misplaced says why a package may not be where it is, or "" if it may: everything under internal/ is one of
-// internal/{server,ui,pkg,external} or a flat domain.
+// internal/{server,ui,pkg,external} or a domain, which is its business root plus the flat domain/ and adapters/.
 func misplaced(pkg string) string {
 	rest, ok := strings.CutPrefix(pkg, "internal/")
 	if !ok {
@@ -91,10 +249,11 @@ func misplaced(pkg string) string {
 	}
 	top, sub, _ := strings.Cut(rest, "/")
 	if _, ok := domains[top]; ok {
-		if sub != "" {
-			return "a domain is one flat package: no sub-packages"
+		switch sub {
+		case "", domainLayer, adaptersLayer:
+			return ""
 		}
-		return ""
+		return "a domain is its business root plus the flat domain/ and adapters/ packages: no other sub-package"
 	}
 	switch top {
 	case "server", "ui", "pkg", "external":
@@ -107,6 +266,9 @@ func misplaced(pkg string) string {
 // forbidden says why pkg may not import dep, both as import paths (relative to the module root for this module's
 // own code), or "" if it may.
 func forbidden(pkg, dep string) string {
+	if why := layerForbidden(pkg, dep); why != "" {
+		return why
+	}
 	for _, lib := range bannedLibraries {
 		if strings.HasPrefix(dep, lib) {
 			return "the standard library replaced " + lib
@@ -165,6 +327,54 @@ func cmdForbidden(pkg, dep string) string {
 	}
 
 	return "cmd/* imports only internal/server, pkg and internal/external"
+}
+
+// layerOf is the layer of a package of a domain: rootLayer for internal/<domain>, and the name of the sub-package
+// for the ones below it (domainLayer, adaptersLayer, or what misplaced rejects). It is "" for a package outside
+// the domains.
+func layerOf(pkg string) string {
+	if domainOf(pkg) == "" {
+		return ""
+	}
+	_, sub, _ := strings.Cut(strings.TrimPrefix(pkg, "internal/"), "/")
+	if sub == "" {
+		return rootLayer
+	}
+
+	return sub
+}
+
+// layerForbidden says why pkg may not import dep because of the layer it is in, or "" if it may: the adapters are
+// held to nothing here, the business root and the rules import no presentation, nor any adapters, and the rules
+// are pure besides (no JSON, no database, only the rules of a domain). It does not know the edges of domains, which
+// forbidden adds.
+func layerForbidden(pkg, dep string) string {
+	layer := layerOf(pkg)
+	if layer == "" || layer == adaptersLayer {
+		return ""
+	}
+	local := strings.TrimPrefix(dep, module+"/")
+	for _, presentation := range presentationImports {
+		if isUnder(local, presentation) {
+			return "only the adapters of a domain speak to the web and draw its pages: the business root and the domain rules import no " + presentation
+		}
+	}
+	if layerOf(local) == adaptersLayer {
+		return "the business root and the domain rules never import adapters"
+	}
+	if layer != domainLayer {
+		return ""
+	}
+	switch {
+	case isUnder(local, "encoding/json"):
+		return "domain rules are pure: JSON belongs to the adapters or the business root"
+	case isUnder(local, "internal/external"):
+		return "domain rules are pure: the business root calls the database"
+	case layerOf(local) == rootLayer:
+		return "domain rules import only domain rules"
+	}
+
+	return ""
 }
 
 // pathsPkg is the one package under internal/server that the domains and internal/ui may import: the typed paths of

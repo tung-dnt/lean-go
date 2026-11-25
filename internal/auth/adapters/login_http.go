@@ -1,21 +1,15 @@
-// Package auth is how the admin logs in and out. The site has exactly one account, made by cmd/admin, so there is
-// no registration, no password reset and no email verification: none of them has a handler, and an unlinked route
-// would still be routable. The login page and the logout page are the whole of it.
-//
-// Who is logged in is kept in the session (pkg/session): the login puts the id of the user there, the
-// logout takes everything out. Finding the user again on the next request is not this package's work. It is the
-// server's middleware (middleware.LoadUser), which every page goes through, so that no domain has to import auth
-// to know who is asking, and the guards (middleware.RequireAuth, RequireNoAuth, RequireAdmin) are applied to the
-// routes in internal/server/routes.go.
-//
-// auth is a leaf domain: it imports no other.
-package auth
+// Package adapters is the presentation of the auth domain: the login page and the logout, with the session, the
+// flash message and the redirect that go with them. A handler reads the request, calls the business root
+// (internal/auth) with plain parameters, and answers with the pages of internal/ui.
+package adapters
 
 import (
 	"errors"
 	"fmt"
 	"net/http"
 
+	"github.com/tung-dnt/lean-go/internal/auth"
+	"github.com/tung-dnt/lean-go/internal/auth/domain"
 	"github.com/tung-dnt/lean-go/internal/external/db"
 	"github.com/tung-dnt/lean-go/internal/server/paths"
 	"github.com/tung-dnt/lean-go/internal/ui/layouts"
@@ -50,9 +44,9 @@ func HandleLoginSubmit(q *db.Queries) http.Handler {
 		}
 
 		// Check the credentials: the same answer for an unknown email and for a wrong password.
-		u, err := authenticate(r.Context(), q, in.Email, in.Password)
+		u, err := auth.Authenticate(r.Context(), q, in.Email, in.Password)
 		switch {
-		case errors.Is(err, ErrInvalidCredentials):
+		case errors.Is(err, domain.ErrInvalidCredentials):
 			in.SetFieldError("Email", "")
 			in.SetFieldError("Password", "")
 			msg.Error(r.Context(), "Invalid credentials. Please try again.")

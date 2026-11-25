@@ -1,10 +1,10 @@
 # Forms and large request bodies
 
-`note.noteForm` and `note.HandleCreate` are the worked example. Form input is decoded and validated by `pkg/form`; request-size and timeout limits are applied at the route.
+`noteForm` and `HandleCreate` in `internal/note/adapters` are the worked example. Form input is decoded and validated by `pkg/form`; request-size and timeout limits are applied at the route.
 
 ## Decode and validate
 
-**Do:** define a form struct with `form:"name"` tags, embed `form.Submission`, and implement `Valid(ctx) map[string]string`. Keys are Go field names; values are field messages. Use `form.Decode` for url-encoded or multipart bodies, then check `IsValid` before writing. Add handler-only validation with `SetFieldError`.
+**Do:** define a form struct in the domain's `adapters/<concern>_form.go` with `form:"name"` tags, embed `form.Submission`, and implement `Valid(ctx) map[string]string`. `Valid` applies the rules of the domain's `domain/` package (`domain.TitleProblem`, `domain.BodyProblem`), which return the sentence of each problem, and files it under the Go field name. Use `form.Decode` for url-encoded or multipart bodies, then check `IsValid` before writing. Add handler-only validation with `SetFieldError`.
 
 ```go
 var in noteForm

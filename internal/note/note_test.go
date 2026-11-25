@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tung-dnt/lean-go/internal/external/db"
-	"github.com/tung-dnt/lean-go/internal/note"
+	"github.com/tung-dnt/lean-go/internal/note/domain"
 	"github.com/tung-dnt/lean-go/internal/server/paths"
 	"github.com/tung-dnt/lean-go/internal/server/servertest"
 )
@@ -72,8 +72,8 @@ func TestNotes__AFormFilledInWrongIsAnsweredWithItsProblemsAndMakesNothing(t *te
 		title, body, field, problem string
 	}{
 		"no title":         {"   ", "body", "title", "This field is required."},
-		"a title too long": {strings.Repeat("é", note.MaxTitle+1), "body", "title", "Keep the title to 120 characters."},
-		"a body too long":  {unique("Long"), strings.Repeat("é", note.MaxBody+1), "body", "Keep the note to 5000 characters."},
+		"a title too long": {strings.Repeat("é", domain.MaxTitle+1), "body", "title", "Keep the title to 120 characters."},
+		"a body too long":  {unique("Long"), strings.Repeat("é", domain.MaxBody+1), "body", "Keep the note to 5000 characters."},
 	} {
 		before, err := srv.Queries.CountNotes(t.Context())
 		require.NoError(t, err)
@@ -161,7 +161,7 @@ func TestNotes__OnlyTheAdminDeletes(t *testing.T) {
 func TestNotes__TheListIsPagedNewestFirst(t *testing.T) {
 	own := servertest.Start(t)
 	var ids []int64
-	for i := range note.PerPage + 1 {
+	for i := range domain.PerPage + 1 {
 		ids = append(ids, newNote(t, own, fmt.Sprintf("Note %02d", i)).ID)
 	}
 	linksOf := func(page string) []string {
@@ -171,7 +171,7 @@ func TestNotes__TheListIsPagedNewestFirst(t *testing.T) {
 	}
 
 	first := linksOf("")
-	require.Len(t, first, note.PerPage)
+	require.Len(t, first, domain.PerPage)
 	assert.Equal(t, paths.Note(ids[len(ids)-1]), first[0], "the newest is first")
 
 	assert.Equal(t, []string{paths.Note(ids[0])}, linksOf("?page=2"), "the oldest is alone on the last page")

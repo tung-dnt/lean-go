@@ -1,10 +1,10 @@
 # Session, flash, redirects and the user
 
-Sessions are handled by `pkg/session`; authentication handlers are in `internal/auth`; user loading and guards are server middleware. The current template has one admin account created by `cmd/admin`, not public registration, password reset, or email verification.
+Sessions are handled by `pkg/session`; authentication handlers are in `internal/auth/adapters` and the credential check is `auth.Authenticate` in `internal/auth`; user loading and guards are server middleware. The current template has one admin account created by `cmd/admin`, not public registration, password reset, or email verification.
 
 ## Use the session and redirect helpers
 
-**Do:** access the current session from `session.From(r.Context())`, mutate it with `SetUserID` or `Clear`, and let session middleware write the cookie. Get the authenticated user with `middleware.User(r.Context())`; views use `page.IsAuth` or `page.IsAdmin`. `middleware.LoadUser` loads the user for every page, so domains do not import `internal/auth` to identify the requester.
+**Do:** access the current session from `session.From(r.Context())`, mutate it with `SetUserID` or `Clear`, and let session middleware write the cookie. Get the authenticated user with `middleware.User(r.Context())`; views use `page.IsAuth` or `page.IsAdmin`. `middleware.LoadUser` loads the user for every page, so domains do not import `internal/auth` to identify the requester. The session, flash messages and redirects are the adapters' business: the business root and `domain/` import none of them, and the adapter passes what they need as parameters.
 
 ```go
 sess, ok := session.From(r.Context())
