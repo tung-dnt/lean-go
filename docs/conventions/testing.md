@@ -5,7 +5,7 @@ Test behavior end to end first: exercise the real server, handlers and PostgreSQ
 
 ## End-to-end tests
 
-Tests for a domain live in its external package (for example `package note_test`) and use `internal/server/servertest`. The server imports every domain, so an in-package test that imports the server would create an import cycle. One `TestMain` starts the shared real server:
+Tests for a domain live in the external package of its business root (for example `package note_test` in `internal/note`), drive its `adapters/` through the real server, and use `internal/server/servertest`. The server imports every domain, so an in-package test that imports the server would create an import cycle. One `TestMain` starts the shared real server:
 
 ```go
 var srv *servertest.Server

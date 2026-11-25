@@ -4,10 +4,10 @@ Read `internal/server/routes.go` before changing routing; `addRoutes` is the rou
 
 ## Register and link routes
 
-**Do:** add routes in `addRoutes` under the domain comment, use Go's method-aware `ServeMux` patterns, and add the path to `paths` plus `internal/server/paths_test.go` (including its wildcard table when it contains a wildcard). `GET` also serves `HEAD`.
+**Do:** add routes in `addRoutes` under the domain comment, use Go's method-aware `ServeMux` patterns, and add the path to `paths` plus `internal/server/paths_test.go` (including its wildcard table when it contains a wildcard). The handlers are the domain's `adapters/` package, which `routes.go` imports as `<domain>adapters`. `GET` also serves `HEAD`.
 
 ```go
-mux.Handle("GET /notes/{id}", note.HandleShow(d.queries))
+mux.Handle("GET /notes/{id}", noteadapters.HandleShow(d.queries))
 ```
 
 Read a path parameter with `r.PathValue("id")`. Use `GET /{$}` for the home page: bare `GET /` matches the subtree and would take unmatched GETs away from the `"/"` not-found catch-all. Never register a page pattern ending in `/`; trailing-slash redirects interact with the removal middleware.

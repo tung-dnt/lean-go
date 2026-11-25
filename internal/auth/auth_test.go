@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/tung-dnt/lean-go/internal/auth"
+	"github.com/tung-dnt/lean-go/internal/auth/domain"
 	"github.com/tung-dnt/lean-go/internal/server/paths"
 	"github.com/tung-dnt/lean-go/internal/server/servertest"
 )
@@ -340,23 +340,23 @@ func TestAuthRoutes__ThereIsNoWayToRegisterOrResetAPassword(t *testing.T) {
 }
 
 func TestHashPassword(t *testing.T) {
-	hash, err := auth.HashPassword("testcheckpassword")
+	hash, err := domain.HashPassword("testcheckpassword")
 	require.NoError(t, err)
 
 	assert.NotEqual(t, "testcheckpassword", hash)
 	assert.NoError(t, bcrypt.CompareHashAndPassword([]byte(hash), []byte("testcheckpassword")))
 	assert.Error(t, bcrypt.CompareHashAndPassword([]byte(hash), []byte("another")))
 
-	again, err := auth.HashPassword("testcheckpassword")
+	again, err := domain.HashPassword("testcheckpassword")
 	require.NoError(t, err)
 	assert.NotEqual(t, hash, again, "every hash has a salt of its own")
 }
 
 func TestRandomToken(t *testing.T) {
 	const length = 64
-	a, err := auth.RandomToken(length)
+	a, err := domain.RandomToken(length)
 	require.NoError(t, err)
-	b, err := auth.RandomToken(length)
+	b, err := domain.RandomToken(length)
 	require.NoError(t, err)
 
 	assert.Len(t, a, length)
@@ -364,7 +364,7 @@ func TestRandomToken(t *testing.T) {
 	assert.NotEqual(t, a, b)
 
 	for _, n := range []int{1, 10, 11} {
-		token, err := auth.RandomToken(n)
+		token, err := domain.RandomToken(n)
 		require.NoError(t, err)
 		assert.Len(t, token, n)
 	}

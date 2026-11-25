@@ -1,61 +1,23 @@
-package note
+package adapters
 
 // What the note domain draws: the list with the form of a new note, and the page of one note.
 
 import (
-	"context"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
-	"unicode/utf8"
 
 	g "maragu.dev/gomponents"
 	h "maragu.dev/gomponents/html"
 
 	"github.com/tung-dnt/lean-go/internal/external/db"
+	"github.com/tung-dnt/lean-go/internal/note/domain"
 	"github.com/tung-dnt/lean-go/internal/server/paths"
 	"github.com/tung-dnt/lean-go/internal/ui"
 	"github.com/tung-dnt/lean-go/internal/ui/components"
 	"github.com/tung-dnt/lean-go/internal/ui/layouts"
-	"github.com/tung-dnt/lean-go/pkg/form"
 	"github.com/tung-dnt/lean-go/pkg/pager"
 )
-
-// The limits of a note, which the table holds it to as well (migration 000002).
-const (
-	MaxTitle = 120
-	MaxBody  = 5000
-)
-
-// noteForm is the form of a new note, which is also what a post of it is read into.
-type noteForm struct {
-	Title string `form:"title"`
-	Body  string `form:"body"`
-	form.Submission
-}
-
-// title is the title as it is kept: without the spaces around it.
-func (f *noteForm) title() string {
-	return strings.TrimSpace(f.Title)
-}
-
-// Valid implements form.Validator: a title of up to MaxTitle characters, and a body of up to MaxBody.
-func (f *noteForm) Valid(context.Context) map[string]string {
-	problems := map[string]string{}
-
-	switch title := f.title(); {
-	case title == "":
-		problems["Title"] = form.MsgRequired
-	case utf8.RuneCountInString(title) > MaxTitle:
-		problems["Title"] = "Keep the title to " + strconv.Itoa(MaxTitle) + " characters."
-	}
-	if utf8.RuneCountInString(f.Body) > MaxBody {
-		problems["Body"] = "Keep the note to " + strconv.Itoa(MaxBody) + " characters."
-	}
-
-	return problems
-}
 
 // draw writes the page, which has the content, in the layout of the site. A page that cannot be built is the error
 // page, and nothing of it has been sent.
@@ -102,11 +64,11 @@ func (f *noteForm) render() g.Node {
 			Label:     "Title",
 			Value:     f.Title,
 		}),
-		// The count of what is typed, against MaxBody, is web/js/note/charCount.ts: data-max is its contract with
-		// this markup.
+		// The count of what is typed, against domain.MaxBody, is web/js/note/charCount.ts: data-max is its contract
+		// with this markup.
 		h.Div(
 			g.Attr("x-data", "charCount"),
-			h.Data("max", strconv.Itoa(MaxBody)),
+			h.Data("max", strconv.Itoa(domain.MaxBody)),
 			g.Attr("@input", "onInput"),
 			components.TextareaField(components.TextareaFieldParams{
 				Form:      f,

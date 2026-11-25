@@ -1,24 +1,18 @@
-// Package note is the example domain of the template: anyone may post a note, everyone sees the list and each note,
-// and the admin may delete one. It is here to show the shape of a domain, not to be kept: copy it to start a new one
-// and delete it when the first real domain exists.
+// Package adapters is the presentation of the note domain: the handlers that read a request and answer with a page
+// (note_http.go), the form of a new note (note_form.go) and the gomponents of the pages (note_views.go). A handler
+// calls the business root (internal/note) with plain parameters, and gives the status of the web to what the
+// business answers: a note that is not there is a 404.
 //
-// A domain is one flat package: note_http.go holds handlers and note_views.go the gomponents. Tests use the
-// external package (note_test) through internal/server/servertest. HandleX(deps...) takes only what it uses;
-// internal/server/routes.go lists every route. Multi-step workflows get concern-prefixed definition and step files.
-//
-// note is a leaf domain: it imports no other.
-package note
+// HandleX(deps...) takes only what it uses; internal/server/routes.go lists every route.
+package adapters
 
 import (
-	"context"
 	"errors"
-	"fmt"
 	"net/http"
-	"strconv"
-
-	"github.com/jackc/pgx/v5"
 
 	"github.com/tung-dnt/lean-go/internal/external/db"
+	"github.com/tung-dnt/lean-go/internal/note"
+	"github.com/tung-dnt/lean-go/internal/note/domain"
 	"github.com/tung-dnt/lean-go/internal/server/paths"
 	"github.com/tung-dnt/lean-go/internal/ui/layouts"
 	"github.com/tung-dnt/lean-go/pkg/form"
@@ -28,12 +22,9 @@ import (
 	"github.com/tung-dnt/lean-go/pkg/redirect"
 )
 
-// PerPage is how many notes a page of the list shows.
-const PerPage = 20
-
 // errNotFound is the answer for an id that is no note's, a malformed one included: the two cannot be told apart from
 // outside.
-var errNotFound = httperr.New(http.StatusNotFound, "no such note")
+var errNotFound = httperr.New(http.StatusNotFound, domain.ErrNotFound.Error())
 
 // HandleList is the list of notes, newest first, with the form of a new one above it (GET /).
 func HandleList(q *db.Queries) http.Handler {
@@ -59,9 +50,9 @@ func HandleCreate(q *db.Queries) http.Handler {
 			return
 		}
 
-		n, err := q.CreateNote(r.Context(), db.CreateNoteParams{Title: in.title(), Body: in.Body})
+		n, err := note.Create(r.Context(), q, in.Title, in.Body)
 		if err != nil {
-			layouts.Error(w, r, fmt.Errorf("create note: %w", err))
+			layouts.Error(w, r, err)
 
 			return
 		}
@@ -74,21 +65,21 @@ func HandleCreate(q *db.Queries) http.Handler {
 // HandleShow is the page of one note (GET /notes/{id}).
 func HandleShow(q *db.Queries) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		id, ok := parseID(r.PathValue("id"))
+		id, ok := domain.ParseID(r.PathValue("id"))
 		if !ok {
 			layouts.Error(w, r, errNotFound)
 
 			return
 		}
 
-		n, err := q.GetNote(r.Context(), id)
+		n, err := note.Get(r.Context(), q, id)
 		switch {
-		case errors.Is(err, pgx.ErrNoRows):
+		case errors.Is(err, domain.ErrNotFound):
 			layouts.Error(w, r, errNotFound)
 
 			return
 		case err != nil:
-			layouts.Error(w, r, fmt.Errorf("get note: %w", err))
+			layouts.Error(w, r, err)
 
 			return
 		}
@@ -102,21 +93,21 @@ func HandleShow(q *db.Queries) http.Handler {
 // that changes something is fired by whatever fetches links. A note that is already gone is a 404.
 func HandleDelete(q *db.Queries) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		id, ok := parseID(r.PathValue("id"))
+		id, ok := domain.ParseID(r.PathValue("id"))
 		if !ok {
 			layouts.Error(w, r, errNotFound)
 
 			return
 		}
 
-		n, err := q.DeleteNote(r.Context(), id)
+		err := note.Delete(r.Context(), q, id)
 		switch {
-		case err != nil:
-			layouts.Error(w, r, fmt.Errorf("delete note: %w", err))
+		case errors.Is(err, domain.ErrNotFound):
+			layouts.Error(w, r, errNotFound)
 
 			return
-		case n == 0:
-			layouts.Error(w, r, errNotFound)
+		case err != nil:
+			layouts.Error(w, r, err)
 
 			return
 		}
@@ -129,9 +120,9 @@ func HandleDelete(q *db.Queries) http.Handler {
 // renderListOrFail loads the page of the list the request asks for and draws it with the form f, or the error page
 // when it cannot be loaded.
 func renderListOrFail(w http.ResponseWriter, r *http.Request, q *db.Queries, f *noteForm) {
-	pgr := pager.NewPager(r, PerPage)
+	pgr := pager.NewPager(r, domain.PerPage)
 
-	notes, err := loadList(r.Context(), q, &pgr)
+	notes, err := note.List(r.Context(), q, &pgr)
 	if err != nil {
 		layouts.Error(w, r, err)
 
@@ -139,31 +130,4 @@ func renderListOrFail(w http.ResponseWriter, r *http.Request, q *db.Queries, f *
 	}
 
 	renderList(w, r, f, notes, pgr)
-}
-
-// loadList is the page of notes that pgr asks for. A page past the end is the last one.
-func loadList(ctx context.Context, q *db.Queries, pgr *pager.Pager) ([]db.Note, error) {
-	total, err := q.CountNotes(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("count notes: %w", err)
-	}
-	// Before the offset is read: this is what pulls a page past the end back onto the last one.
-	pgr.SetItems(int(total))
-
-	notes, err := q.ListNotes(ctx, db.ListNotesParams{
-		PageLimit:  int64(pgr.ItemsPerPage),
-		PageOffset: int64(pgr.GetOffset()),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("list notes: %w", err)
-	}
-
-	return notes, nil
-}
-
-// parseID is the id of a path, which is a positive number or nothing.
-func parseID(s string) (int64, bool) {
-	id, err := strconv.ParseInt(s, 10, 64)
-
-	return id, err == nil && id > 0
 }

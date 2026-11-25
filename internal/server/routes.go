@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/tung-dnt/lean-go/internal/auth"
-	"github.com/tung-dnt/lean-go/internal/note"
+	authadapters "github.com/tung-dnt/lean-go/internal/auth/adapters"
+	noteadapters "github.com/tung-dnt/lean-go/internal/note/adapters"
 	"github.com/tung-dnt/lean-go/internal/server/paths"
 	"github.com/tung-dnt/lean-go/internal/ui/layouts"
 	"github.com/tung-dnt/lean-go/pkg/middleware"
@@ -24,7 +24,8 @@ import (
 // Everything below /admin is held to the admin check by NewServer, so an admin route needs nothing here.
 //
 // The handlers are made of the dependencies they use, and of nothing else. A domain's routes go under its comment
-// line, in the order of its pages, as the auth routes do.
+// line, in the order of its pages, as the auth routes do. They are the handlers of the domain's adapters package,
+// imported as <domain>adapters.
 func addRoutes(mux *http.ServeMux, d deps) error {
 	fail := layouts.Error
 	requireAuth := middleware.RequireAuth(fail)
@@ -45,17 +46,17 @@ func addRoutes(mux *http.ServeMux, d deps) error {
 
 	// Auth: how the admin logs in and out. There is one account, made by cmd/admin, so there is no registration and
 	// no password reset.
-	mux.Handle("GET "+paths.Login, requireNoAuth(auth.HandleLogin()))
-	mux.Handle("POST "+paths.Login, requireNoAuth(auth.HandleLoginSubmit(d.queries)))
-	mux.Handle("GET "+paths.Logout, requireAuth(auth.HandleLogout()))
+	mux.Handle("GET "+paths.Login, requireNoAuth(authadapters.HandleLogin()))
+	mux.Handle("POST "+paths.Login, requireNoAuth(authadapters.HandleLoginSubmit(d.queries)))
+	mux.Handle("GET "+paths.Logout, requireAuth(authadapters.HandleLogout()))
 
 	// Note: the example domain. The list is the root of the site, which is why its pattern ends in {$}: a pattern
 	// for "/" alone would be every address that no other route takes. Anyone may post a note; deleting one is
 	// below /admin, which NewServer holds to the admin check, so the route needs no guard of its own here.
-	mux.Handle("GET "+paths.Home+"{$}", note.HandleList(d.queries))
-	mux.Handle("POST "+paths.Notes, note.HandleCreate(d.queries))
-	mux.Handle("GET /notes/{id}", note.HandleShow(d.queries))
-	mux.Handle("POST /admin/notes/{id}/delete", note.HandleDelete(d.queries))
+	mux.Handle("GET "+paths.Home+"{$}", noteadapters.HandleList(d.queries))
+	mux.Handle("POST "+paths.Notes, noteadapters.HandleCreate(d.queries))
+	mux.Handle("GET /notes/{id}", noteadapters.HandleShow(d.queries))
+	mux.Handle("POST /admin/notes/{id}/delete", noteadapters.HandleDelete(d.queries))
 
 	// Whatever no route takes is a 404 with the error page.
 	mux.Handle("/", HandleNotFound())

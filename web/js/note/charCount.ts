@@ -1,7 +1,7 @@
 // charCount — how much of a text field's limit is used, for the form of a new note. Alpine owns one piece of UI
 // state: the count of the characters typed. It is bound once on the wrapper of the field, since input events bubble
 // up from the textarea, and reads the limit from data-max, which the server writes from the same constant it
-// checks against (note.MaxBody).
+// checks against (domain.MaxBody of internal/note/domain).
 //
 // This only tells the visitor. The server counts again and refuses a note that is too long.
 
