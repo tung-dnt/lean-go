@@ -7,3 +7,5 @@ public/static/js/
 public/static/main.css
 .env
 cover.out
+test-results/
+playwright-report/

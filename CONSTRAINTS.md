@@ -16,6 +16,7 @@ The Floor is in [AGENTS.md](AGENTS.md), so that every agent has it loaded from i
 |---|---|---|---|---|
 | Build | Binary, CSS and JS build | `just build` | task end, CI | yes |
 | Tests | All pass, race detector clean | `just test` (builds `main.css` and `app.js`, then `go test -race -coverprofile=cover.out ./...`) | task end, CI | yes |
+| Browser | Core UI journeys pass in Chromium, with no JavaScript or asset failures and no retries | `just browser` (real server and isolated PostgreSQL; screenshots/report retained) | task end, CI | yes |
 | SQL | Generated code up to date, queries vetted | `just sqlc-verify` (regenerates `internal/external/db` and fails on a diff), `just sqlc-vet` | task end, CI | yes |
 | Lint | No findings | `just lint` (`golangci-lint run`) | task end, CI | yes |
 | Go vulnerabilities | No called vulnerability | `just vuln` (`go tool govulncheck ./...`) | task end, CI | yes |

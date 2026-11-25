@@ -31,10 +31,17 @@ just             # every recipe
 
 ```bash
 just test    # go test -race -coverprofile=cover.out ./... (builds main.css and app.js first)
-just check   # sqlc-verify, sqlc-vet, lint, vuln, types, secrets, deps, dupes, test, build: what a finished task must pass
+just browser # Chromium UI regressions against the real server and isolated PostgreSQL; screenshots/report in test-results/ and playwright-report/
+just check   # SQL, lint, vulnerabilities, types, secrets, dependencies, duplication, HTTP tests, browser regressions and build
 ```
 
 JavaScript package tools run with Bun as the runtime (`bunx --bun` / `bun x --bun`), not just as packages installed by Bun; avoid bare binaries and Node-based `npx` launches.
+
+`just install` includes the pinned Chromium browser. After upgrading Playwright, run `just browser-install`
+again (`just browser-install --with-deps` on Linux). `just browser` uses Docker, or the same
+`GO_DATABASE_TESTCONNECTION` with a literal `search_path=test_$RAND` as the HTTP tests; it never uses
+the development schema. Browser tests run without retries or Go test caching. CI keeps failure evidence
+in the `browser-evidence` artifact; open a local report with `bunx --bun playwright show-report`.
 
 ## Domains
 

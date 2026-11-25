@@ -41,7 +41,7 @@ help:
     @just --list --unsorted
 
 # Install all dependencies
-install: deps-install tailwind-install bun-install
+install: deps-install tailwind-install bun-install browser-install
 
 # Download the Go modules and pre-build the tools pinned in go.mod
 deps-install:
@@ -51,6 +51,14 @@ deps-install:
 # Install JS packages with Bun: htmx/Alpine (bundled into app.js) + editor types
 bun-install:
     bun install
+
+# Install the Chromium version pinned by Playwright (CI adds --with-deps for Linux libraries)
+browser-install *args:
+    bunx --bun playwright install chromium {{args}}
+
+# Exercise Chromium against the real server and isolated PostgreSQL; Go's cache cannot track the Playwright inputs
+browser: css js
+    go test -count=1 -race -tags browser -run '^TestBrowser$' -v ./internal/server
 
 # Install the Tailwind CSS CLI and the daisyUI plugins, at the versions pinned in versions.env
 tailwind-install:
@@ -153,7 +161,7 @@ dupes:
     bun x --bun jscpd@4.3.0 --config .jscpd.json .
 
 # Everything CI and a finished task must pass
-check: sqlc-verify sqlc-vet lint vuln types secrets deps dupes test build
+check: sqlc-verify sqlc-vet lint vuln types secrets deps dupes test browser build
 
 # Check for direct dependency updates
 check-updates:
