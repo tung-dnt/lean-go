@@ -101,6 +101,24 @@ jobs:
       if: ${{ !cancelled() }}
       run: just test
 
+    - name: Install Chromium
+      if: ${{ !cancelled() }}
+      run: just browser-install --with-deps
+
+    - name: Browser regressions
+      if: ${{ !cancelled() }}
+      run: just browser
+
+    - name: Upload browser evidence
+      if: ${{ failure() && !cancelled() }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: browser-evidence
+        path: |
+          test-results/
+          playwright-report/
+        if-no-files-found: ignore
+
     - name: Build
       if: ${{ !cancelled() }}
       run: just build

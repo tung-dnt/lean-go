@@ -88,6 +88,7 @@ func TextareaField(el TextareaFieldParams) g.Node {
 			h.Class("textarea h-24 w-2/3 "+formFieldStatusClass(el.Form, el.FormField)),
 			h.ID(el.Name),
 			h.Name(el.Name),
+			h.Aria("label", el.Label),
 			g.Text(el.Value),
 		),
 		Help(el.Help),
@@ -140,6 +141,7 @@ func SelectList(el OptionsParams) g.Node {
 		h.Select(
 			h.Class("select "+formFieldStatusClass(el.Form, el.FormField)),
 			h.Name(el.Name),
+			h.Aria("label", el.Label),
 			buttons,
 		),
 		Help(el.Help),
@@ -172,6 +174,7 @@ func InputField(el InputFieldParams) g.Node {
 		h.Input(
 			h.ID(el.Name),
 			h.Name(el.Name),
+			h.Aria("label", el.Label),
 			h.Type(el.InputType),
 			h.Class("input "+formFieldStatusClass(el.Form, el.FormField)),
 			h.Value(el.Value),
@@ -215,6 +218,7 @@ func FileField(el FileFieldParams) g.Node {
 			h.Type("file"),
 			h.Class(class),
 			h.Name(el.Name),
+			h.Aria("label", el.Label),
 			g.If(el.Accept != "", h.Accept(el.Accept)),
 		),
 		Help(el.Help),

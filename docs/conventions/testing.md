@@ -15,11 +15,30 @@ func TestMain(m *testing.M) {
 }
 ```
 
-Drive it as a browser with `servertest.NewVisitor(t)` (cookie jar; redirects are not followed), `srv.Visit`, `srv.PostForm`, `srv.LogIn`/`LogInAs`, and `servertest.Fragment` for HTML. Use `srv.NewRequest` plus `srv.Do` for custom headers. `srv.Queries` and `srv.DB` prepare or inspect rows. The package's tests share a database, so create uniquely named fixtures and clean up where appropriate.
+Drive HTTP behavior with `servertest.NewVisitor(t)` (cookie jar; redirects are not followed), `srv.Visit`, `srv.PostForm`, `srv.LogIn`/`LogInAs`, and `servertest.Fragment` for HTML. This client does not execute JavaScript, apply CSS or perform browser navigation. Use `srv.NewRequest` plus `srv.Do` for custom headers. `srv.Queries` and `srv.DB` prepare or inspect rows. The package's tests share a database, so create uniquely named fixtures and clean up where appropriate.
 
 Use `servertest.Start(t, servertest.WithEnv(...))` for an isolated server/schema when a test must alter configuration, count all rows, or break the database. `srv.FailQuery(t, table, query)` makes one real sqlc-named query fail with `"boom"`; `srv.HideRows(t, table, query)` makes it return no rows; `srv.Heal(t)` removes the fault and `srv.Log()` exposes server logs. Prefer these targeted faults over replacing the database or mocking handlers.
 
 Tests need Docker for the process's first `postgres:17-alpine` testcontainer (`pkg/testdb`); each process uses a random schema. Set `GO_DATABASE_TESTCONNECTION` to use an existing PostgreSQL test database instead. Cross-origin protection refuses cross-site posts; test clients without `Origin` and `Sec-Fetch-Site` are allowed, so a plain `PostForm` does not need a CSRF-token fetch.
+
+## Browser regressions
+
+Run `just browser` for the real Chromium path, not another HTTP simulation. The `browser`-tagged
+`internal/server/browser_test.go` reuses the server fixture and seeds a synthetic account, then runs
+`scripts/browser.test.ts` through Playwright under Bun. `just install` installs Chromium; after a
+Playwright upgrade run `just browser-install` again (Linux: add `--with-deps`).
+
+Cover observable journeys: invalid/valid login, navigation/history, note CRUD, Alpine after htmx
+swaps, and logout. Reopen saved data after a reload to prove persistence. Assert htmx navigation
+without a document reload, so a broken JavaScript bundle cannot pass through plain HTML fallbacks.
+JavaScript exceptions, console errors and failed static assets fail the suite. Do not add retries,
+fixed sleeps, mocked APIs or browser-state setters to make a journey pass.
+
+`just check` and CI include this gate. Go test caching is disabled for this command because Go
+cannot track changes to Playwright's files or browser installation. Screenshots and the HTML report
+survive teardown in `test-results/` and `playwright-report/`; failures retain a trace. CI uploads
+those directories as `browser-evidence`. Use `bunx --bun playwright show-report` to inspect locally.
+The project verification skill in `.omp/skills/verify/` maps the supported journeys.
 
 ## Unit tests and database behavior
 
